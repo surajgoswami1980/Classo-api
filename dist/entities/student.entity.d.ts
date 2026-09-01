@@ -1,0 +1,31 @@
+import { UserEntity } from './user.entity';
+export declare class StudentEntity {
+    id: number;
+    school_id: number;
+    user_id: number;
+    admission_number: string;
+    class_id: number;
+    section_id: number;
+    roll_number: string;
+    date_of_birth: Date;
+    gender: string;
+    blood_group: string;
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+    admission_date: Date;
+    status: string;
+    previous_school: string;
+    transport_route_id: number;
+    father_name: string;
+    father_phone: string;
+    mother_name: string;
+    mother_phone: string;
+    guardian_name: string;
+    guardian_phone: string;
+    medical_conditions: string;
+    created_at: Date;
+    updated_at: Date;
+    user: UserEntity;
+}
