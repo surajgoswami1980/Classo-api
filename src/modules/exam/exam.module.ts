@@ -7,6 +7,7 @@ import { ExamEntity } from '../../entities/exam.entity';
 import { StudentMarksEntity } from '../../entities/student-marks.entity';
 import { StudentEntity } from '../../entities/student.entity';
 import { SubjectEntity } from '../../entities/subject.entity';
+import { SchoolEntity } from '../../entities/school.entity';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { SubjectEntity } from '../../entities/subject.entity';
       StudentMarksEntity,
       StudentEntity,
       SubjectEntity,
+      SchoolEntity,
     ]),
   ],
   controllers: [ExamController],

@@ -3,6 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { NotificationEntity } from '../../entities/notification.entity';
 import { NotificationReadEntity } from '../../entities/notification-read.entity';
+import {
+  SendNotificationDto,
+  SendBulkNotificationDto,
+  ListNotificationsQueryDto,
+} from './dto/notification.dto';
 
 @Injectable()
 export class NotificationService {
@@ -13,16 +18,7 @@ export class NotificationService {
     private readRepo: Repository<NotificationReadEntity>,
   ) {}
 
-  async sendNotification(schoolId: number, sentBy: number, data: {
-    title: string;
-    body: string;
-    channel?: string;
-    target_type: string;
-    target_role?: string;
-    target_class_id?: number;
-    target_section_id?: number;
-    target_user_ids?: number[];
-  }) {
+  async sendNotification(schoolId: number, sentBy: number, data: SendNotificationDto) {
     const notification = this.notifRepo.create({
       school_id: schoolId,
       title: data.title,
@@ -46,7 +42,7 @@ export class NotificationService {
     };
   }
 
-  async listNotifications(schoolId: number, userRole: string, userId: number, query?: { limit?: number; unread?: string }) {
+  async listNotifications(schoolId: number, userRole: string, userId: number, query?: ListNotificationsQueryDto) {
     const limit = query?.limit || 50;
 
     // Get notifications targeted to this user's role or to all
@@ -116,15 +112,7 @@ export class NotificationService {
     return { message: 'Marked as read' };
   }
 
-  async sendBulkNotification(schoolId: number, sentBy: number, data: {
-    title: string;
-    body: string;
-    channel?: string;
-    target_type: string;
-    target_role?: string;
-    target_class_id?: number;
-    target_section_id?: number;
-  }) {
+  async sendBulkNotification(schoolId: number, sentBy: number, data: SendBulkNotificationDto) {
     return this.sendNotification(schoolId, sentBy, data);
   }
 }

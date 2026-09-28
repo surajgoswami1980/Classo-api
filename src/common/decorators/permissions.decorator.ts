@@ -61,6 +61,22 @@ export enum Permission {
   LIBRARY_MANAGE = 'library.manage',
   LIBRARY_ISSUE = 'library.issue',
 
+  // Event
+  EVENT_VIEW = 'event.view',
+  EVENT_MANAGE = 'event.manage',
+
+  // Hostel
+  HOSTEL_VIEW = 'hostel.view',
+  HOSTEL_MANAGE = 'hostel.manage',
+
+  // Inventory
+  INVENTORY_VIEW = 'inventory.view',
+  INVENTORY_MANAGE = 'inventory.manage',
+
+  // Payroll
+  PAYROLL_VIEW = 'payroll.view',
+  PAYROLL_MANAGE = 'payroll.manage',
+
   // Settings
   SETTINGS_VIEW = 'settings.view',
   SETTINGS_MANAGE = 'settings.manage',

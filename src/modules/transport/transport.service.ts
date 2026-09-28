@@ -27,7 +27,10 @@ export class TransportService {
 
     const rows = await this.routeRepo.query(
       `SELECT st.id as assignment_id, r.id as route_id, r.name as route_name,
-              r.driver_name, r.driver_phone,
+              -- prefer the crew configured on the vehicle, fall back to the route
+              COALESCE(v.driver_name, r.driver_name) as driver_name,
+              COALESCE(v.driver_phone, r.driver_phone) as driver_phone,
+              v.conductor_name, v.conductor_phone,
               v.vehicle_number, v.vehicle_type, v.capacity,
               ts.name as stop_name, ts.pickup_time, ts.drop_time
        FROM student_transport st
@@ -110,6 +113,10 @@ export class TransportService {
         vehicle_number: dto.vehicle_number,
         capacity: dto.capacity,
         vehicle_type: dto.vehicle_type || 'bus',
+        driver_name: dto.driver_name,
+        driver_phone: dto.driver_phone,
+        conductor_name: dto.conductor_name,
+        conductor_phone: dto.conductor_phone,
         insurance_expiry: dto.insurance_expiry as any,
         fitness_expiry: dto.fitness_expiry as any,
         is_active: 1,

@@ -35,6 +35,22 @@ __decorate([
     __metadata("design:type", String)
 ], VehicleEntity.prototype, "vehicle_type", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ length: 100, nullable: true }),
+    __metadata("design:type", String)
+], VehicleEntity.prototype, "driver_name", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ length: 15, nullable: true }),
+    __metadata("design:type", String)
+], VehicleEntity.prototype, "driver_phone", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ length: 100, nullable: true }),
+    __metadata("design:type", String)
+], VehicleEntity.prototype, "conductor_name", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ length: 15, nullable: true }),
+    __metadata("design:type", String)
+], VehicleEntity.prototype, "conductor_phone", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'date', nullable: true }),
     __metadata("design:type", Date)
 ], VehicleEntity.prototype, "insurance_expiry", void 0);

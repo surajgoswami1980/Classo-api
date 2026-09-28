@@ -15,6 +15,10 @@ export declare class CreateVehicleDto {
     vehicle_number: string;
     capacity: number;
     vehicle_type?: 'bus' | 'van' | 'auto';
+    driver_name?: string;
+    driver_phone?: string;
+    conductor_name?: string;
+    conductor_phone?: string;
     insurance_expiry?: string;
     fitness_expiry?: string;
 }

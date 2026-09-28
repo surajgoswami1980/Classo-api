@@ -8,6 +8,11 @@ import { RequirePermissions, Permission } from '../../common/decorators/permissi
 import { SchoolId } from '../../common/decorators/school-id.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { NotificationService } from './notification.service';
+import {
+  SendNotificationDto,
+  SendBulkNotificationDto,
+  ListNotificationsQueryDto,
+} from './dto/notification.dto';
 
 @ApiTags('Notification')
 @ApiBearerAuth()
@@ -21,16 +26,7 @@ export class NotificationController {
   @RequirePermissions(Permission.NOTIFICATION_SEND)
   @ApiOperation({ summary: 'Send a notification' })
   async sendNotification(
-    @Body() body: {
-      title: string;
-      body: string;
-      channel?: string;
-      target_type: string;
-      target_role?: string;
-      target_class_id?: number;
-      target_section_id?: number;
-      target_user_ids?: number[];
-    },
+    @Body() body: SendNotificationDto,
     @SchoolId() schoolId: number,
     @CurrentUser('user_id') userId: number,
   ) {
@@ -41,7 +37,7 @@ export class NotificationController {
   @Get('list')
   @ApiOperation({ summary: 'List notifications for current user' })
   async listNotifications(
-    @Query() query: { limit?: number; unread?: string },
+    @Query() query: ListNotificationsQueryDto,
     @SchoolId() schoolId: number,
     @CurrentUser('user_id') userId: number,
     @CurrentUser('role') userRole: string,
@@ -66,15 +62,7 @@ export class NotificationController {
   @RequirePermissions(Permission.NOTIFICATION_SEND)
   @ApiOperation({ summary: 'Send bulk notification' })
   async sendBulkNotification(
-    @Body() body: {
-      title: string;
-      body: string;
-      channel?: string;
-      target_type: string;
-      target_role?: string;
-      target_class_id?: number;
-      target_section_id?: number;
-    },
+    @Body() body: SendBulkNotificationDto,
     @SchoolId() schoolId: number,
     @CurrentUser('user_id') userId: number,
   ) {

@@ -14,12 +14,13 @@ const library_service_1 = require("./library.service");
 const library_book_entity_1 = require("../../entities/library-book.entity");
 const library_book_issue_entity_1 = require("../../entities/library-book-issue.entity");
 const school_entity_1 = require("../../entities/school.entity");
+const student_entity_1 = require("../../entities/student.entity");
 let LibraryModule = class LibraryModule {
 };
 exports.LibraryModule = LibraryModule;
 exports.LibraryModule = LibraryModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([library_book_entity_1.LibraryBookEntity, library_book_issue_entity_1.LibraryBookIssueEntity, school_entity_1.SchoolEntity])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([library_book_entity_1.LibraryBookEntity, library_book_issue_entity_1.LibraryBookIssueEntity, school_entity_1.SchoolEntity, student_entity_1.StudentEntity])],
         controllers: [library_controller_1.LibraryController],
         providers: [library_service_1.LibraryService],
         exports: [library_service_1.LibraryService],

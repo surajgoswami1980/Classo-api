@@ -20,14 +20,29 @@ const exam_entity_1 = require("../../entities/exam.entity");
 const student_marks_entity_1 = require("../../entities/student-marks.entity");
 const student_entity_1 = require("../../entities/student.entity");
 const subject_entity_1 = require("../../entities/subject.entity");
+const school_entity_1 = require("../../entities/school.entity");
 const redis_service_1 = require("../../common/providers/redis.service");
 let ExamService = class ExamService {
-    constructor(examRepo, marksRepo, studentRepo, subjectRepo, redis) {
+    constructor(examRepo, marksRepo, studentRepo, subjectRepo, schoolRepo, redis) {
         this.examRepo = examRepo;
         this.marksRepo = marksRepo;
         this.studentRepo = studentRepo;
         this.subjectRepo = subjectRepo;
+        this.schoolRepo = schoolRepo;
         this.redis = redis;
+    }
+    async getSchoolBranding(schoolId) {
+        const school = await this.schoolRepo.findOne({ where: { id: schoolId } });
+        const settings = school?.settings || {};
+        const addressParts = [school?.address, school?.city, school?.state, school?.pincode]
+            .filter((p) => p && String(p).trim().length > 0);
+        return {
+            name: school?.name || 'School',
+            logo_url: school?.logo || '',
+            address: addressParts.join(', '),
+            primary_color: settings.primary_color || '#2563eb',
+            board_affiliation: school?.board_affiliation || '',
+        };
     }
     async createExam(schoolId, dto) {
         const exam = this.examRepo.create({
@@ -288,7 +303,9 @@ exports.ExamService = ExamService = __decorate([
     __param(1, (0, typeorm_1.InjectRepository)(student_marks_entity_1.StudentMarksEntity)),
     __param(2, (0, typeorm_1.InjectRepository)(student_entity_1.StudentEntity)),
     __param(3, (0, typeorm_1.InjectRepository)(subject_entity_1.SubjectEntity)),
+    __param(4, (0, typeorm_1.InjectRepository)(school_entity_1.SchoolEntity)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,

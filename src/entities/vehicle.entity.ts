@@ -18,6 +18,18 @@ export class VehicleEntity {
   @Column({ type: 'enum', enum: ['bus', 'van', 'auto'], default: 'bus' })
   vehicle_type: string;
 
+  @Column({ length: 100, nullable: true })
+  driver_name: string;
+
+  @Column({ length: 15, nullable: true })
+  driver_phone: string;
+
+  @Column({ length: 100, nullable: true })
+  conductor_name: string;
+
+  @Column({ length: 15, nullable: true })
+  conductor_phone: string;
+
   @Column({ type: 'date', nullable: true })
   insurance_expiry: Date;
 

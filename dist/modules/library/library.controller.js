@@ -21,6 +21,7 @@ const permissions_guard_1 = require("../../common/guards/permissions.guard");
 const roles_decorator_1 = require("../../common/decorators/roles.decorator");
 const permissions_decorator_1 = require("../../common/decorators/permissions.decorator");
 const school_id_decorator_1 = require("../../common/decorators/school-id.decorator");
+const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 const library_service_1 = require("./library.service");
 const library_dto_1 = require("./dto/library.dto");
 let LibraryController = class LibraryController {
@@ -45,6 +46,18 @@ let LibraryController = class LibraryController {
     }
     async returnBook(dto, schoolId) {
         const result = await this.libraryService.returnBook(schoolId, dto.issue_id);
+        return { success: true, data: result };
+    }
+    async listIssues(query, schoolId) {
+        const result = await this.libraryService.listIssues(schoolId, query);
+        return { success: true, ...result };
+    }
+    async listStudentBooks(studentId, schoolId) {
+        const result = await this.libraryService.listIssues(schoolId, { student_id: studentId, limit: 200 });
+        return { success: true, ...result };
+    }
+    async getMyBooks(schoolId, userId) {
+        const result = await this.libraryService.getMyBooks(schoolId, userId);
         return { success: true, data: result };
     }
     async getDashboard(schoolId) {
@@ -108,6 +121,37 @@ __decorate([
     __metadata("design:paramtypes", [library_dto_1.ReturnBookDto, Number]),
     __metadata("design:returntype", Promise)
 ], LibraryController.prototype, "returnBook", null);
+__decorate([
+    (0, common_1.Get)('issue/list'),
+    (0, permissions_decorator_1.RequirePermissions)(permissions_decorator_1.Permission.LIBRARY_VIEW),
+    (0, swagger_1.ApiOperation)({ summary: 'List issued/returned books with fine and days-to-expire (filterable)' }),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, school_id_decorator_1.SchoolId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [library_dto_1.ListIssuesQueryDto, Number]),
+    __metadata("design:returntype", Promise)
+], LibraryController.prototype, "listIssues", null);
+__decorate([
+    (0, common_1.Get)('student/:studentId/books'),
+    (0, roles_decorator_1.Roles)(roles_decorator_1.UserRole.SCHOOL_ADMIN, roles_decorator_1.UserRole.SUB_ADMIN, roles_decorator_1.UserRole.TEACHER, roles_decorator_1.UserRole.STAFF, roles_decorator_1.UserRole.INCHARGE),
+    (0, permissions_decorator_1.RequirePermissions)(permissions_decorator_1.Permission.LIBRARY_VIEW),
+    (0, swagger_1.ApiOperation)({ summary: "List a specific student's issued books (admin per-student view)" }),
+    __param(0, (0, common_1.Param)('studentId')),
+    __param(1, (0, school_id_decorator_1.SchoolId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number]),
+    __metadata("design:returntype", Promise)
+], LibraryController.prototype, "listStudentBooks", null);
+__decorate([
+    (0, common_1.Get)('my-books'),
+    (0, roles_decorator_1.Roles)(roles_decorator_1.UserRole.STUDENT, roles_decorator_1.UserRole.PARENT, roles_decorator_1.UserRole.TEACHER, roles_decorator_1.UserRole.STAFF, roles_decorator_1.UserRole.INCHARGE),
+    (0, swagger_1.ApiOperation)({ summary: "The logged-in user's own issued books + outstanding fines" }),
+    __param(0, (0, school_id_decorator_1.SchoolId)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)('user_id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number]),
+    __metadata("design:returntype", Promise)
+], LibraryController.prototype, "getMyBooks", null);
 __decorate([
     (0, common_1.Get)('dashboard'),
     (0, roles_decorator_1.Roles)(roles_decorator_1.UserRole.SCHOOL_ADMIN, roles_decorator_1.UserRole.SUB_ADMIN, roles_decorator_1.UserRole.STAFF),

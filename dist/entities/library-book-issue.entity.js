@@ -31,6 +31,10 @@ __decorate([
     __metadata("design:type", Number)
 ], LibraryBookIssueEntity.prototype, "issued_to_user_id", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", Number)
+], LibraryBookIssueEntity.prototype, "student_id", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'date' }),
     __metadata("design:type", Date)
 ], LibraryBookIssueEntity.prototype, "issue_date", void 0);

@@ -3,14 +3,23 @@ import { ExamEntity } from '../../entities/exam.entity';
 import { StudentMarksEntity } from '../../entities/student-marks.entity';
 import { StudentEntity } from '../../entities/student.entity';
 import { SubjectEntity } from '../../entities/subject.entity';
+import { SchoolEntity } from '../../entities/school.entity';
 import { RedisService } from '../../common/providers/redis.service';
 export declare class ExamService {
     private examRepo;
     private marksRepo;
     private studentRepo;
     private subjectRepo;
+    private schoolRepo;
     private redis;
-    constructor(examRepo: Repository<ExamEntity>, marksRepo: Repository<StudentMarksEntity>, studentRepo: Repository<StudentEntity>, subjectRepo: Repository<SubjectEntity>, redis: RedisService);
+    constructor(examRepo: Repository<ExamEntity>, marksRepo: Repository<StudentMarksEntity>, studentRepo: Repository<StudentEntity>, subjectRepo: Repository<SubjectEntity>, schoolRepo: Repository<SchoolEntity>, redis: RedisService);
+    getSchoolBranding(schoolId: number): Promise<{
+        name: string;
+        logo_url: string;
+        address: string;
+        primary_color: any;
+        board_affiliation: string;
+    }>;
     createExam(schoolId: number, dto: CreateExamDto): Promise<ExamEntity>;
     getExamSubjects(schoolId: number, examId: number, classId: number): Promise<any>;
     listExams(schoolId: number, sessionId?: number): Promise<ExamEntity[]>;

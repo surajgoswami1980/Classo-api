@@ -118,14 +118,8 @@ export class ExamController {
   ) {
     const reportCard: any = await this.examService.getReportCard(schoolId, studentId, examId);
 
-    // Get school info for branding
-    const schoolInfo = {
-      name: 'School Name', // TODO: Fetch from school entity
-      logo_url: '',
-      address: '',
-      primary_color: '#2563eb',
-      board_affiliation: 'CBSE',
-    };
+    // Get school info for branding (resolved from the school entity)
+    const schoolInfo = await this.examService.getSchoolBranding(schoolId);
 
     const html = this.reportCardPdf.generateReportCardHtml({
       student: {

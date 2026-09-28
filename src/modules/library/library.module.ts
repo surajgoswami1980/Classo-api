@@ -5,9 +5,10 @@ import { LibraryService } from './library.service';
 import { LibraryBookEntity } from '../../entities/library-book.entity';
 import { LibraryBookIssueEntity } from '../../entities/library-book-issue.entity';
 import { SchoolEntity } from '../../entities/school.entity';
+import { StudentEntity } from '../../entities/student.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LibraryBookEntity, LibraryBookIssueEntity, SchoolEntity])],
+  imports: [TypeOrmModule.forFeature([LibraryBookEntity, LibraryBookIssueEntity, SchoolEntity, StudentEntity])],
   controllers: [LibraryController],
   providers: [LibraryService],
   exports: [LibraryService],

@@ -1,27 +1,16 @@
 import { Repository } from 'typeorm';
 import { NotificationEntity } from '../../entities/notification.entity';
 import { NotificationReadEntity } from '../../entities/notification-read.entity';
+import { SendNotificationDto, SendBulkNotificationDto, ListNotificationsQueryDto } from './dto/notification.dto';
 export declare class NotificationService {
     private notifRepo;
     private readRepo;
     constructor(notifRepo: Repository<NotificationEntity>, readRepo: Repository<NotificationReadEntity>);
-    sendNotification(schoolId: number, sentBy: number, data: {
-        title: string;
-        body: string;
-        channel?: string;
-        target_type: string;
-        target_role?: string;
-        target_class_id?: number;
-        target_section_id?: number;
-        target_user_ids?: number[];
-    }): Promise<{
+    sendNotification(schoolId: number, sentBy: number, data: SendNotificationDto): Promise<{
         id: number;
         message: string;
     }>;
-    listNotifications(schoolId: number, userRole: string, userId: number, query?: {
-        limit?: number;
-        unread?: string;
-    }): Promise<{
+    listNotifications(schoolId: number, userRole: string, userId: number, query?: ListNotificationsQueryDto): Promise<{
         notifications: {
             id: number;
             title: string;
@@ -38,15 +27,7 @@ export declare class NotificationService {
     markAsRead(schoolId: number, notificationId: number, userId: number): Promise<{
         message: string;
     }>;
-    sendBulkNotification(schoolId: number, sentBy: number, data: {
-        title: string;
-        body: string;
-        channel?: string;
-        target_type: string;
-        target_role?: string;
-        target_class_id?: number;
-        target_section_id?: number;
-    }): Promise<{
+    sendBulkNotification(schoolId: number, sentBy: number, data: SendBulkNotificationDto): Promise<{
         id: number;
         message: string;
     }>;

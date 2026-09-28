@@ -10,8 +10,14 @@ export class PaymentTransactionEntity {
   @Column()
   school_id: number;
 
-  @Column()
+  @Column({ length: 30, default: 'fee' })
+  payable_type: string; // 'fee' | 'event'
+
+  @Column({ nullable: true })
   fee_invoice_id: number;
+
+  @Column({ nullable: true })
+  event_registration_id: number;
 
   @Column()
   student_id: number;

@@ -23,9 +23,17 @@ __decorate([
     __metadata("design:type", Number)
 ], PaymentTransactionEntity.prototype, "school_id", void 0);
 __decorate([
-    (0, typeorm_1.Column)(),
+    (0, typeorm_1.Column)({ length: 30, default: 'fee' }),
+    __metadata("design:type", String)
+], PaymentTransactionEntity.prototype, "payable_type", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
     __metadata("design:type", Number)
 ], PaymentTransactionEntity.prototype, "fee_invoice_id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", Number)
+], PaymentTransactionEntity.prototype, "event_registration_id", void 0);
 __decorate([
     (0, typeorm_1.Column)(),
     __metadata("design:type", Number)

@@ -1,7 +1,9 @@
 export declare class PaymentTransactionEntity {
     id: number;
     school_id: number;
+    payable_type: string;
     fee_invoice_id: number;
+    event_registration_id: number;
     student_id: number;
     parent_user_id: number;
     amount: number;

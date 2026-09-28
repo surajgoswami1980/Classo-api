@@ -16,6 +16,9 @@ export class LibraryBookIssueEntity {
   @Column()
   issued_to_user_id: number;
 
+  @Column({ nullable: true })
+  student_id: number;
+
   @Column({ type: 'date' })
   issue_date: Date;
 

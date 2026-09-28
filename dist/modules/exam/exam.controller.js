@@ -59,13 +59,7 @@ let ExamController = class ExamController {
     }
     async getReportCardPdf(schoolId, studentId, examId, res) {
         const reportCard = await this.examService.getReportCard(schoolId, studentId, examId);
-        const schoolInfo = {
-            name: 'School Name',
-            logo_url: '',
-            address: '',
-            primary_color: '#2563eb',
-            board_affiliation: 'CBSE',
-        };
+        const schoolInfo = await this.examService.getSchoolBranding(schoolId);
         const html = this.reportCardPdf.generateReportCardHtml({
             student: {
                 name: reportCard.student.name,

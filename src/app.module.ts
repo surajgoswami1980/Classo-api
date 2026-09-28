@@ -24,6 +24,10 @@ import { AssignmentModule } from './modules/assignment/assignment.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { TransportModule } from './modules/transport/transport.module';
 import { LibraryModule } from './modules/library/library.module';
+import { EventModule } from './modules/event/event.module';
+import { HostelModule } from './modules/hostel/hostel.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { ReportModule } from './modules/report/report.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
@@ -67,6 +71,10 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
     NotificationModule,
     TransportModule,
     LibraryModule,
+    EventModule,
+    HostelModule,
+    InventoryModule,
+    PayrollModule,
     SettingsModule,
     ReportModule,
     SuperAdminModule,

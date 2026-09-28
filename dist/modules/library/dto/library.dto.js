@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ReturnBookDto = exports.IssueBookDto = exports.ListBooksQueryDto = exports.UpdateBookDto = exports.CreateBookDto = void 0;
+exports.ListIssuesQueryDto = exports.ReturnBookDto = exports.IssueBookDto = exports.ListBooksQueryDto = exports.UpdateBookDto = exports.CreateBookDto = void 0;
 class CreateBookDto {
 }
 exports.CreateBookDto = CreateBookDto;
@@ -16,4 +16,7 @@ exports.IssueBookDto = IssueBookDto;
 class ReturnBookDto {
 }
 exports.ReturnBookDto = ReturnBookDto;
+class ListIssuesQueryDto {
+}
+exports.ListIssuesQueryDto = ListIssuesQueryDto;
 //# sourceMappingURL=library.dto.js.map

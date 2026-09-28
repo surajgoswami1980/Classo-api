@@ -3,6 +3,7 @@ export declare class LibraryBookIssueEntity {
     school_id: number;
     book_id: number;
     issued_to_user_id: number;
+    student_id: number;
     issue_date: Date;
     due_date: Date;
     return_date: Date;

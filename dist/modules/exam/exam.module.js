@@ -16,6 +16,7 @@ const exam_entity_1 = require("../../entities/exam.entity");
 const student_marks_entity_1 = require("../../entities/student-marks.entity");
 const student_entity_1 = require("../../entities/student.entity");
 const subject_entity_1 = require("../../entities/subject.entity");
+const school_entity_1 = require("../../entities/school.entity");
 let ExamModule = class ExamModule {
 };
 exports.ExamModule = ExamModule;
@@ -27,6 +28,7 @@ exports.ExamModule = ExamModule = __decorate([
                 student_marks_entity_1.StudentMarksEntity,
                 student_entity_1.StudentEntity,
                 subject_entity_1.SubjectEntity,
+                school_entity_1.SchoolEntity,
             ]),
         ],
         controllers: [exam_controller_1.ExamController],

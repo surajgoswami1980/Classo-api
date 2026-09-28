@@ -6,8 +6,9 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Roles, UserRole } from '../../common/decorators/roles.decorator';
 import { RequirePermissions, Permission } from '../../common/decorators/permissions.decorator';
 import { SchoolId } from '../../common/decorators/school-id.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { LibraryService } from './library.service';
-import { CreateBookDto, UpdateBookDto, ListBooksQueryDto, IssueBookDto, ReturnBookDto } from './dto/library.dto';
+import { CreateBookDto, UpdateBookDto, ListBooksQueryDto, IssueBookDto, ReturnBookDto, ListIssuesQueryDto } from './dto/library.dto';
 
 @ApiTags('Library')
 @ApiBearerAuth()
@@ -57,6 +58,31 @@ export class LibraryController {
   @ApiOperation({ summary: 'Return a book and settle any overdue fine' })
   async returnBook(@Body() dto: ReturnBookDto, @SchoolId() schoolId: number) {
     const result = await this.libraryService.returnBook(schoolId, dto.issue_id);
+    return { success: true, data: result };
+  }
+
+  @Get('issue/list')
+  @RequirePermissions(Permission.LIBRARY_VIEW)
+  @ApiOperation({ summary: 'List issued/returned books with fine and days-to-expire (filterable)' })
+  async listIssues(@Query() query: ListIssuesQueryDto, @SchoolId() schoolId: number) {
+    const result = await this.libraryService.listIssues(schoolId, query);
+    return { success: true, ...result };
+  }
+
+  @Get('student/:studentId/books')
+  @Roles(UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN, UserRole.TEACHER, UserRole.STAFF, UserRole.INCHARGE)
+  @RequirePermissions(Permission.LIBRARY_VIEW)
+  @ApiOperation({ summary: "List a specific student's issued books (admin per-student view)" })
+  async listStudentBooks(@Param('studentId') studentId: number, @SchoolId() schoolId: number) {
+    const result = await this.libraryService.listIssues(schoolId, { student_id: studentId, limit: 200 });
+    return { success: true, ...result };
+  }
+
+  @Get('my-books')
+  @Roles(UserRole.STUDENT, UserRole.PARENT, UserRole.TEACHER, UserRole.STAFF, UserRole.INCHARGE)
+  @ApiOperation({ summary: "The logged-in user's own issued books + outstanding fines" })
+  async getMyBooks(@SchoolId() schoolId: number, @CurrentUser('user_id') userId: number) {
+    const result = await this.libraryService.getMyBooks(schoolId, userId);
     return { success: true, data: result };
   }
 

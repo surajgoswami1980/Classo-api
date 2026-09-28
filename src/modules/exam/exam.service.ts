@@ -5,6 +5,7 @@ import { ExamEntity } from '../../entities/exam.entity';
 import { StudentMarksEntity } from '../../entities/student-marks.entity';
 import { StudentEntity } from '../../entities/student.entity';
 import { SubjectEntity } from '../../entities/subject.entity';
+import { SchoolEntity } from '../../entities/school.entity';
 import { RedisService } from '../../common/providers/redis.service';
 
 @Injectable()
@@ -14,8 +15,28 @@ export class ExamService {
     @InjectRepository(StudentMarksEntity) private marksRepo: Repository<StudentMarksEntity>,
     @InjectRepository(StudentEntity) private studentRepo: Repository<StudentEntity>,
     @InjectRepository(SubjectEntity) private subjectRepo: Repository<SubjectEntity>,
+    @InjectRepository(SchoolEntity) private schoolRepo: Repository<SchoolEntity>,
     private redis: RedisService,
   ) {}
+
+  /**
+   * Resolve school branding (name/logo/address/colors) for report-card PDFs.
+   * Falls back to sensible defaults if a field is not configured.
+   */
+  async getSchoolBranding(schoolId: number) {
+    const school = await this.schoolRepo.findOne({ where: { id: schoolId } });
+    const settings = (school?.settings as Record<string, any>) || {};
+    const addressParts = [school?.address, school?.city, school?.state, school?.pincode]
+      .filter((p) => p && String(p).trim().length > 0);
+
+    return {
+      name: school?.name || 'School',
+      logo_url: school?.logo || '',
+      address: addressParts.join(', '),
+      primary_color: settings.primary_color || '#2563eb',
+      board_affiliation: school?.board_affiliation || '',
+    };
+  }
 
   /**
    * Create a new exam

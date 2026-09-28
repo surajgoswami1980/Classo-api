@@ -27,6 +27,10 @@ const assignment_module_1 = require("./modules/assignment/assignment.module");
 const notification_module_1 = require("./modules/notification/notification.module");
 const transport_module_1 = require("./modules/transport/transport.module");
 const library_module_1 = require("./modules/library/library.module");
+const event_module_1 = require("./modules/event/event.module");
+const hostel_module_1 = require("./modules/hostel/hostel.module");
+const inventory_module_1 = require("./modules/inventory/inventory.module");
+const payroll_module_1 = require("./modules/payroll/payroll.module");
 const settings_module_1 = require("./modules/settings/settings.module");
 const report_module_1 = require("./modules/report/report.module");
 const super_admin_module_1 = require("./modules/super-admin/super-admin.module");
@@ -72,6 +76,10 @@ exports.AppModule = AppModule = __decorate([
             notification_module_1.NotificationModule,
             transport_module_1.TransportModule,
             library_module_1.LibraryModule,
+            event_module_1.EventModule,
+            hostel_module_1.HostelModule,
+            inventory_module_1.InventoryModule,
+            payroll_module_1.PayrollModule,
             settings_module_1.SettingsModule,
             report_module_1.ReportModule,
             super_admin_module_1.SuperAdminModule,

@@ -23,6 +23,7 @@ const permissions_decorator_1 = require("../../common/decorators/permissions.dec
 const school_id_decorator_1 = require("../../common/decorators/school-id.decorator");
 const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 const notification_service_1 = require("./notification.service");
+const notification_dto_1 = require("./dto/notification.dto");
 let NotificationController = class NotificationController {
     constructor(notificationService) {
         this.notificationService = notificationService;
@@ -54,7 +55,7 @@ __decorate([
     __param(1, (0, school_id_decorator_1.SchoolId)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)('user_id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Number, Number]),
+    __metadata("design:paramtypes", [notification_dto_1.SendNotificationDto, Number, Number]),
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "sendNotification", null);
 __decorate([
@@ -65,7 +66,7 @@ __decorate([
     __param(2, (0, current_user_decorator_1.CurrentUser)('user_id')),
     __param(3, (0, current_user_decorator_1.CurrentUser)('role')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Number, Number, String]),
+    __metadata("design:paramtypes", [notification_dto_1.ListNotificationsQueryDto, Number, Number, String]),
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "listNotifications", null);
 __decorate([
@@ -87,7 +88,7 @@ __decorate([
     __param(1, (0, school_id_decorator_1.SchoolId)()),
     __param(2, (0, current_user_decorator_1.CurrentUser)('user_id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Number, Number]),
+    __metadata("design:paramtypes", [notification_dto_1.SendBulkNotificationDto, Number, Number]),
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "sendBulkNotification", null);
 exports.NotificationController = NotificationController = __decorate([
