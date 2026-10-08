@@ -1,5 +1,5 @@
 import { AuthService } from './auth.service';
-import { LoginDto, SchoolLookupDto, RefreshTokenDto, SuperAdminLoginDto, ForgotPasswordDto, ResetPasswordDto } from './dto/login.dto';
+import { LoginDto, SchoolLookupDto, RefreshTokenDto, SuperAdminLoginDto, ForgotPasswordDto, ResetPasswordDto, RequestOtpDto, VerifyOtpDto, SuperAdminRequestOtpDto, SuperAdminVerifyOtpDto } from './dto/login.dto';
 export declare class AuthController {
     private readonly authService;
     constructor(authService: AuthService);
@@ -48,6 +48,90 @@ export declare class AuthController {
         };
     }>;
     superAdminLogin(dto: SuperAdminLoginDto): Promise<{
+        success: boolean;
+        data: {
+            access_token: string;
+            refresh_token: string;
+            user: {
+                id: number;
+                name: string;
+                email: string;
+                phone: string;
+                role: string;
+            };
+        };
+    }>;
+    otpAvailability(dto: SchoolLookupDto): Promise<{
+        success: boolean;
+        data: {
+            otp_login_enabled: boolean;
+            channels: import("../../common/providers/otp.service").OtpChannel[];
+        };
+    }>;
+    requestOtp(dto: RequestOtpDto): Promise<{
+        success: boolean;
+        message: string;
+        data: {
+            sent: boolean;
+            channel: import("../../common/providers/otp.service").OtpChannel;
+            masked: string;
+        } | {
+            dev_otp?: string;
+            sent: boolean;
+            channel: import("../../common/providers/otp.service").OtpChannel;
+            masked: string;
+            cooldown: number;
+        };
+    }>;
+    verifyOtp(dto: VerifyOtpDto): Promise<{
+        success: boolean;
+        data: {
+            access_token: string;
+            refresh_token: string;
+            user: {
+                teacher_id: any;
+                designation: any;
+                department: any;
+                student_id: any;
+                roll_number: any;
+                admission_number: any;
+                class_name: any;
+                section_name: any;
+                class_id: any;
+                section_id: any;
+                id: number;
+                name: string;
+                email: string;
+                phone: string;
+                role: string;
+                profile_image: string;
+                permissions: any[];
+            };
+            school: {
+                id: number;
+                name: string;
+                code: string;
+                logo_url: string;
+                primary_color: string;
+            };
+        };
+    }>;
+    requestSuperAdminOtp(dto: SuperAdminRequestOtpDto): Promise<{
+        success: boolean;
+        message: string;
+        data: {
+            sent: boolean;
+            channel: import("../../common/providers/otp.service").OtpChannel;
+            masked: string;
+        } | {
+            dev_otp?: string;
+            sent: boolean;
+            channel: import("../../common/providers/otp.service").OtpChannel;
+            masked: string;
+            cooldown: number;
+        };
+    }>;
+    verifySuperAdminOtp(dto: SuperAdminVerifyOtpDto): Promise<{
         success: boolean;
         data: {
             access_token: string;

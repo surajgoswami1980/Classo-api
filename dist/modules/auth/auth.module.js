@@ -19,6 +19,8 @@ const user_entity_1 = require("../../entities/user.entity");
 const school_entity_1 = require("../../entities/school.entity");
 const password_reset_request_entity_1 = require("../../entities/password-reset-request.entity");
 const email_service_1 = require("../../common/providers/email.service");
+const sms_service_1 = require("../../common/providers/sms.service");
+const otp_service_1 = require("../../common/providers/otp.service");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
@@ -37,7 +39,7 @@ exports.AuthModule = AuthModule = __decorate([
             }),
         ],
         controllers: [auth_controller_1.AuthController],
-        providers: [auth_service_1.AuthService, jwt_strategy_1.JwtStrategy, email_service_1.EmailService],
+        providers: [auth_service_1.AuthService, jwt_strategy_1.JwtStrategy, email_service_1.EmailService, sms_service_1.SmsService, otp_service_1.OtpService],
         exports: [auth_service_1.AuthService, jwt_1.JwtModule],
     })
 ], AuthModule);

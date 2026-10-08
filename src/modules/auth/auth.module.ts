@@ -10,6 +10,8 @@ import { UserEntity } from '../../entities/user.entity';
 import { SchoolEntity } from '../../entities/school.entity';
 import { PasswordResetRequestEntity } from '../../entities/password-reset-request.entity';
 import { EmailService } from '../../common/providers/email.service';
+import { SmsService } from '../../common/providers/sms.service';
+import { OtpService } from '../../common/providers/otp.service';
 
 @Module({
   imports: [
@@ -25,7 +27,7 @@ import { EmailService } from '../../common/providers/email.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, EmailService],
+  providers: [AuthService, JwtStrategy, EmailService, SmsService, OtpService],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

@@ -25,9 +25,10 @@ const school_entity_1 = require("../../entities/school.entity");
 const password_reset_request_entity_1 = require("../../entities/password-reset-request.entity");
 const redis_service_1 = require("../../common/providers/redis.service");
 const email_service_1 = require("../../common/providers/email.service");
+const otp_service_1 = require("../../common/providers/otp.service");
 const RESET_TOKEN_TTL_MINUTES = 30;
 let AuthService = class AuthService {
-    constructor(userRepo, schoolRepo, resetRepo, jwtService, configService, redis, emailService) {
+    constructor(userRepo, schoolRepo, resetRepo, jwtService, configService, redis, emailService, otpService) {
         this.userRepo = userRepo;
         this.schoolRepo = schoolRepo;
         this.resetRepo = resetRepo;
@@ -35,6 +36,7 @@ let AuthService = class AuthService {
         this.configService = configService;
         this.redis = redis;
         this.emailService = emailService;
+        this.otpService = otpService;
     }
     async lookupSchool(dto) {
         const school = await this.schoolRepo.findOne({
@@ -95,6 +97,9 @@ let AuthService = class AuthService {
             console.log('[LOGIN] Password mismatch for user:', user.id, user.name, '| phone:', user.phone, '| password hash starts:', storedPassword.substring(0, 15));
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
+        return this.buildSession(user, school);
+    }
+    async buildSession(user, school) {
         try {
             user.last_login_at = new Date();
             await this.userRepo.save(user);
@@ -162,6 +167,152 @@ let AuthService = class AuthService {
                 primary_color: '#2563EB',
             },
         };
+    }
+    resolveOtpConfig(school) {
+        const settings = (school.settings || {});
+        const enabled = settings.otp_login_enabled !== false;
+        let channels = Array.isArray(settings.otp_channels) && settings.otp_channels.length
+            ? settings.otp_channels.filter((c) => c === 'email' || c === 'mobile')
+            : ['email', 'mobile'];
+        if (channels.length === 0)
+            channels = ['email', 'mobile'];
+        return { enabled, channels };
+    }
+    async findSchoolByCode(code) {
+        const school = await this.schoolRepo.findOne({ where: { code, is_active: true } });
+        if (!school)
+            throw new common_1.UnauthorizedException('Invalid school code');
+        return school;
+    }
+    isEmail(value) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    }
+    async findSchoolUserByIdentifier(schoolId, identifier) {
+        return this.userRepo
+            .createQueryBuilder('u')
+            .where('u.school_id = :schoolId', { schoolId })
+            .andWhere('u.is_active = :active', { active: true })
+            .andWhere('u.deleted_at IS NULL')
+            .andWhere('(u.employee_id = :id OR u.email = :id OR u.phone = :id)', { id: identifier })
+            .getOne();
+    }
+    async getOtpAvailability(schoolCode) {
+        const school = await this.findSchoolByCode(schoolCode);
+        const { enabled, channels } = this.resolveOtpConfig(school);
+        return { otp_login_enabled: enabled, channels };
+    }
+    async requestOtp(schoolCode, identifier, channel) {
+        const school = await this.findSchoolByCode(schoolCode);
+        const { enabled, channels } = this.resolveOtpConfig(school);
+        if (!enabled) {
+            throw new common_1.ForbiddenException('OTP login is disabled for this school.');
+        }
+        const user = await this.findSchoolUserByIdentifier(school.id, identifier);
+        if (!user) {
+            return { sent: true, channel: channel || (this.isEmail(identifier) ? 'email' : 'mobile'), masked: this.mask(identifier) };
+        }
+        const resolvedChannel = channel || (this.isEmail(identifier) ? 'email' : 'mobile');
+        if (!channels.includes(resolvedChannel)) {
+            throw new common_1.BadRequestException(`${resolvedChannel === 'email' ? 'Email' : 'Mobile'} OTP is not enabled for this school.`);
+        }
+        const destination = resolvedChannel === 'email' ? user.email : user.phone;
+        if (!destination) {
+            throw new common_1.BadRequestException(`No ${resolvedChannel} on file for this account. Try the other method or contact your school.`);
+        }
+        const result = await this.otpService.request(resolvedChannel, destination, 'login', user.name);
+        return {
+            sent: true,
+            channel: resolvedChannel,
+            masked: this.mask(destination),
+            cooldown: result.cooldown,
+            ...(result.dev_otp ? { dev_otp: result.dev_otp } : {}),
+        };
+    }
+    async verifyOtp(schoolCode, identifier, otp) {
+        const school = await this.findSchoolByCode(schoolCode);
+        const { enabled } = this.resolveOtpConfig(school);
+        if (!enabled)
+            throw new common_1.ForbiddenException('OTP login is disabled for this school.');
+        const user = await this.findSchoolUserByIdentifier(school.id, identifier);
+        if (!user)
+            throw new common_1.UnauthorizedException('Invalid credentials');
+        const channel = this.isEmail(identifier) ? 'email' : 'mobile';
+        const destination = channel === 'email' ? user.email : user.phone;
+        if (!destination)
+            throw new common_1.UnauthorizedException('Invalid credentials');
+        const ok = await this.otpService.verify(channel, destination, otp);
+        if (!ok)
+            throw new common_1.UnauthorizedException('Invalid OTP');
+        return this.buildSession(user, school);
+    }
+    async findSuperAdminByIdentifier(identifier) {
+        return this.userRepo
+            .createQueryBuilder('u')
+            .where('u.school_id IS NULL')
+            .andWhere('u.is_active = :active', { active: true })
+            .andWhere('u.deleted_at IS NULL')
+            .andWhere('(u.email = :id OR u.phone = :id)', { id: identifier })
+            .getOne();
+    }
+    async requestSuperAdminOtp(identifier, channel) {
+        const user = await this.findSuperAdminByIdentifier(identifier);
+        if (!user) {
+            return { sent: true, channel: channel || (this.isEmail(identifier) ? 'email' : 'mobile'), masked: this.mask(identifier) };
+        }
+        const resolvedChannel = channel || (this.isEmail(identifier) ? 'email' : 'mobile');
+        const destination = resolvedChannel === 'email' ? user.email : user.phone;
+        if (!destination) {
+            throw new common_1.BadRequestException(`No ${resolvedChannel} on file for this account.`);
+        }
+        const result = await this.otpService.request(resolvedChannel, destination, 'login', user.name);
+        return {
+            sent: true,
+            channel: resolvedChannel,
+            masked: this.mask(destination),
+            cooldown: result.cooldown,
+            ...(result.dev_otp ? { dev_otp: result.dev_otp } : {}),
+        };
+    }
+    async verifySuperAdminOtp(identifier, otp) {
+        const user = await this.findSuperAdminByIdentifier(identifier);
+        if (!user)
+            throw new common_1.UnauthorizedException('Invalid credentials');
+        const channel = this.isEmail(identifier) ? 'email' : 'mobile';
+        const destination = channel === 'email' ? user.email : user.phone;
+        if (!destination)
+            throw new common_1.UnauthorizedException('Invalid credentials');
+        const ok = await this.otpService.verify(channel, destination, otp);
+        if (!ok)
+            throw new common_1.UnauthorizedException('Invalid OTP');
+        const roleRow = await this.userRepo.query(`SELECT r.name FROM roles r JOIN model_has_roles mhr ON r.id = mhr.role_id WHERE mhr.model_id = ? AND mhr.model_type = 'App\\\\Models\\\\User' LIMIT 1`, [user.id]);
+        const role = roleRow?.[0]?.name ? this.normalizeRole(roleRow[0].name) : null;
+        if (role !== 'super_admin') {
+            throw new common_1.ForbiddenException('This account does not have super admin access');
+        }
+        user.last_login_at = new Date();
+        await this.userRepo.save(user);
+        const payload = { user_id: user.id, school_id: null, role, permissions: [] };
+        const access_token = this.jwtService.sign(payload);
+        const refresh_token = this.jwtService.sign(payload, {
+            secret: this.configService.get('JWT_REFRESH_SECRET'),
+            expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN') || '30d',
+        });
+        return {
+            access_token,
+            refresh_token,
+            user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role },
+        };
+    }
+    mask(value) {
+        if (!value)
+            return '';
+        if (this.isEmail(value)) {
+            const [local, domain] = value.split('@');
+            const head = local.slice(0, 1);
+            return `${head}${'*'.repeat(Math.max(1, local.length - 1))}@${domain}`;
+        }
+        const digits = value.replace(/\D/g, '');
+        return digits.length <= 4 ? '*'.repeat(digits.length) : `${'*'.repeat(digits.length - 4)}${digits.slice(-4)}`;
     }
     async superAdminLogin(identifier, password) {
         const user = await this.userRepo
@@ -380,6 +531,7 @@ exports.AuthService = AuthService = __decorate([
         jwt_1.JwtService,
         config_1.ConfigService,
         redis_service_1.RedisService,
-        email_service_1.EmailService])
+        email_service_1.EmailService,
+        otp_service_1.OtpService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

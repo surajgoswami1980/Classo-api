@@ -1,7 +1,7 @@
 import { Controller, Post, Body, UseGuards, Get, Request } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { LoginDto, SchoolLookupDto, RefreshTokenDto, SuperAdminLoginDto, ForgotPasswordDto, ResetPasswordDto } from './dto/login.dto';
+import { LoginDto, SchoolLookupDto, RefreshTokenDto, SuperAdminLoginDto, ForgotPasswordDto, ResetPasswordDto, RequestOtpDto, VerifyOtpDto, SuperAdminRequestOtpDto, SuperAdminVerifyOtpDto } from './dto/login.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -28,6 +28,43 @@ export class AuthController {
   @ApiOperation({ summary: 'Login for platform super admins (no school context)' })
   async superAdminLogin(@Body() dto: SuperAdminLoginDto) {
     const result = await this.authService.superAdminLogin(dto.identifier, dto.password);
+    return { success: true, data: result };
+  }
+
+  // ─── OTP Login ──────────────────────────────────────────────────────
+
+  @Post('otp/availability')
+  @ApiOperation({ summary: 'Check if a school has OTP login enabled (and channels)' })
+  async otpAvailability(@Body() dto: SchoolLookupDto) {
+    const result = await this.authService.getOtpAvailability(dto.school_code);
+    return { success: true, data: result };
+  }
+
+  @Post('otp/request')
+  @ApiOperation({ summary: 'Request a login OTP via email or mobile (school user)' })
+  async requestOtp(@Body() dto: RequestOtpDto) {
+    const result = await this.authService.requestOtp(dto.school_code, dto.identifier.trim(), dto.channel);
+    return { success: true, message: 'If the account exists, an OTP has been sent.', data: result };
+  }
+
+  @Post('otp/verify')
+  @ApiOperation({ summary: 'Verify a login OTP and sign in (school user)' })
+  async verifyOtp(@Body() dto: VerifyOtpDto) {
+    const result = await this.authService.verifyOtp(dto.school_code, dto.identifier.trim(), dto.otp.trim());
+    return { success: true, data: result };
+  }
+
+  @Post('super-admin/otp/request')
+  @ApiOperation({ summary: 'Request a login OTP for a platform super admin' })
+  async requestSuperAdminOtp(@Body() dto: SuperAdminRequestOtpDto) {
+    const result = await this.authService.requestSuperAdminOtp(dto.identifier.trim(), dto.channel);
+    return { success: true, message: 'If the account exists, an OTP has been sent.', data: result };
+  }
+
+  @Post('super-admin/otp/verify')
+  @ApiOperation({ summary: 'Verify a super admin login OTP and sign in' })
+  async verifySuperAdminOtp(@Body() dto: SuperAdminVerifyOtpDto) {
+    const result = await this.authService.verifySuperAdminOtp(dto.identifier.trim(), dto.otp.trim());
     return { success: true, data: result };
   }
 

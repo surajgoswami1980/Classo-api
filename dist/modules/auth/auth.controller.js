@@ -35,6 +35,26 @@ let AuthController = class AuthController {
         const result = await this.authService.superAdminLogin(dto.identifier, dto.password);
         return { success: true, data: result };
     }
+    async otpAvailability(dto) {
+        const result = await this.authService.getOtpAvailability(dto.school_code);
+        return { success: true, data: result };
+    }
+    async requestOtp(dto) {
+        const result = await this.authService.requestOtp(dto.school_code, dto.identifier.trim(), dto.channel);
+        return { success: true, message: 'If the account exists, an OTP has been sent.', data: result };
+    }
+    async verifyOtp(dto) {
+        const result = await this.authService.verifyOtp(dto.school_code, dto.identifier.trim(), dto.otp.trim());
+        return { success: true, data: result };
+    }
+    async requestSuperAdminOtp(dto) {
+        const result = await this.authService.requestSuperAdminOtp(dto.identifier.trim(), dto.channel);
+        return { success: true, message: 'If the account exists, an OTP has been sent.', data: result };
+    }
+    async verifySuperAdminOtp(dto) {
+        const result = await this.authService.verifySuperAdminOtp(dto.identifier.trim(), dto.otp.trim());
+        return { success: true, data: result };
+    }
     async forgotPassword(dto) {
         await this.authService.forgotPassword(dto.school_code, dto.identifier);
         return { success: true, message: 'If an account matches, a reset link has been sent to its email address.' };
@@ -85,6 +105,46 @@ __decorate([
     __metadata("design:paramtypes", [login_dto_1.SuperAdminLoginDto]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "superAdminLogin", null);
+__decorate([
+    (0, common_1.Post)('otp/availability'),
+    (0, swagger_1.ApiOperation)({ summary: 'Check if a school has OTP login enabled (and channels)' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [login_dto_1.SchoolLookupDto]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "otpAvailability", null);
+__decorate([
+    (0, common_1.Post)('otp/request'),
+    (0, swagger_1.ApiOperation)({ summary: 'Request a login OTP via email or mobile (school user)' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [login_dto_1.RequestOtpDto]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "requestOtp", null);
+__decorate([
+    (0, common_1.Post)('otp/verify'),
+    (0, swagger_1.ApiOperation)({ summary: 'Verify a login OTP and sign in (school user)' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [login_dto_1.VerifyOtpDto]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "verifyOtp", null);
+__decorate([
+    (0, common_1.Post)('super-admin/otp/request'),
+    (0, swagger_1.ApiOperation)({ summary: 'Request a login OTP for a platform super admin' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [login_dto_1.SuperAdminRequestOtpDto]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "requestSuperAdminOtp", null);
+__decorate([
+    (0, common_1.Post)('super-admin/otp/verify'),
+    (0, swagger_1.ApiOperation)({ summary: 'Verify a super admin login OTP and sign in' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [login_dto_1.SuperAdminVerifyOtpDto]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "verifySuperAdminOtp", null);
 __decorate([
     (0, common_1.Post)('forgot-password'),
     (0, swagger_1.ApiOperation)({ summary: 'Request a password reset email' }),

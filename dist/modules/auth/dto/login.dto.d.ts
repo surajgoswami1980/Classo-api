@@ -22,3 +22,22 @@ export declare class ResetPasswordDto {
 export declare class RefreshTokenDto {
     refresh_token: string;
 }
+export declare class RequestOtpDto {
+    school_code: string;
+    identifier: string;
+    channel?: 'email' | 'mobile';
+}
+export declare class VerifyOtpDto {
+    school_code: string;
+    identifier: string;
+    otp: string;
+    platform?: string;
+}
+export declare class SuperAdminRequestOtpDto {
+    identifier: string;
+    channel?: 'email' | 'mobile';
+}
+export declare class SuperAdminVerifyOtpDto {
+    identifier: string;
+    otp: string;
+}
