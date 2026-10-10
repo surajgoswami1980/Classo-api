@@ -31,8 +31,8 @@ async function bootstrap() {
 
   // Swagger
   const config = new DocumentBuilder()
-    .setTitle('School ERP API')
-    .setDescription('Multi-Tenant School ERP SaaS API')
+    .setTitle('Quilo API')
+    .setDescription('Quilo — Multi-Tenant SaaS ERP API')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -41,6 +41,6 @@ async function bootstrap() {
 
   const port = process.env.PORT || 7002;
   await app.listen(port);
-  console.log(`🚀 School ERP API running on port ${port}`);
+  console.log(`🚀 Quilo API running on port ${port}`);
 }
 bootstrap();

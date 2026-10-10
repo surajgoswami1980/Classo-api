@@ -1,5 +1,5 @@
 import { NotificationService } from './notification.service';
-import { SendNotificationDto, SendBulkNotificationDto, ListNotificationsQueryDto } from './dto/notification.dto';
+import { SendNotificationDto, SendBulkNotificationDto, ListNotificationsQueryDto, RegisterTokenDto } from './dto/notification.dto';
 export declare class NotificationController {
     private readonly notificationService;
     constructor(notificationService: NotificationService);
@@ -25,6 +25,20 @@ export declare class NotificationController {
             }[];
             total: number;
             unread_count: number;
+        };
+    }>;
+    registerToken(body: RegisterTokenDto, schoolId: number, userId: number): Promise<{
+        success: boolean;
+        data: {
+            message: string;
+        };
+    }>;
+    unregisterToken(body: {
+        token: string;
+    }, userId: number): Promise<{
+        success: boolean;
+        data: {
+            message: string;
         };
     }>;
     markAsRead(id: number, schoolId: number, userId: number): Promise<{

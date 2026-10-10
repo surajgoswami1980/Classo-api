@@ -103,13 +103,13 @@ export class OtpService {
     await this.safe(() => this.redis.set(this.codeKey(channel, destination), payload, OTP_TTL_SECONDS));
     await this.safe(() => this.redis.set(this.cooldownKey(channel, destination), '1', RESEND_COOLDOWN_SECONDS));
 
-    const message = `Your School ERP ${purpose === 'login' ? 'login' : 'verification'} OTP is ${code}. It is valid for 5 minutes. Do not share it with anyone.`;
+    const message = `Your Quilo ${purpose === 'login' ? 'login' : 'verification'} OTP is ${code}. It is valid for 5 minutes. Do not share it with anyone.`;
 
     let sent = false;
     if (channel === 'email') {
       await this.email.send(
         destination,
-        'Your School ERP OTP',
+        'Your Quilo OTP',
         `<p>Hi ${recipientName || 'there'},</p><p>Your One-Time Password is:</p><h2 style="letter-spacing:4px">${code}</h2><p>It is valid for 5 minutes. Do not share it with anyone.</p>`,
       );
       sent = true; // email service logs if unconfigured

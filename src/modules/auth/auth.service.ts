@@ -488,7 +488,7 @@ export class AuthService {
 
     await this.emailService.send(
       user.email,
-      'Reset your School ERP password',
+      'Reset your Quilo password',
       `<p>Hi ${user.name},</p><p>Click the link below to reset your password. This link expires in ${RESET_TOKEN_TTL_MINUTES} minutes.</p><p><a href="${resetLink}">${resetLink}</a></p><p>If you didn't request this, you can safely ignore this email.</p>`,
     );
   }

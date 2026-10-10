@@ -1,7 +1,7 @@
 {
-  "name": "school-erp-api",
+  "name": "quilo-api",
   "version": "1.0.0",
-  "description": "Multi-Tenant School ERP SaaS - NestJS API",
+  "description": "Quilo — Multi-Tenant SaaS ERP (NestJS API)",
   "author": "",
   "private": true,
   "license": "UNLICENSED",

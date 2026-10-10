@@ -372,7 +372,7 @@ let AuthService = class AuthService {
         }));
         const webUrl = this.configService.get('WEB_APP_URL') || 'http://localhost:3000';
         const resetLink = `${webUrl}/reset-password?token=${rawToken}`;
-        await this.emailService.send(user.email, 'Reset your School ERP password', `<p>Hi ${user.name},</p><p>Click the link below to reset your password. This link expires in ${RESET_TOKEN_TTL_MINUTES} minutes.</p><p><a href="${resetLink}">${resetLink}</a></p><p>If you didn't request this, you can safely ignore this email.</p>`);
+        await this.emailService.send(user.email, 'Reset your Quilo password', `<p>Hi ${user.name},</p><p>Click the link below to reset your password. This link expires in ${RESET_TOKEN_TTL_MINUTES} minutes.</p><p><a href="${resetLink}">${resetLink}</a></p><p>If you didn't request this, you can safely ignore this email.</p>`);
     }
     async resetPassword(rawToken, newPassword) {
         const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');

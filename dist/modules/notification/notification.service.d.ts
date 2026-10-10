@@ -1,11 +1,21 @@
 import { Repository } from 'typeorm';
 import { NotificationEntity } from '../../entities/notification.entity';
 import { NotificationReadEntity } from '../../entities/notification-read.entity';
-import { SendNotificationDto, SendBulkNotificationDto, ListNotificationsQueryDto } from './dto/notification.dto';
+import { DeviceTokenEntity } from '../../entities/device-token.entity';
+import { PushQueueService } from './push-queue.service';
+import { SendNotificationDto, SendBulkNotificationDto, ListNotificationsQueryDto, RegisterTokenDto } from './dto/notification.dto';
 export declare class NotificationService {
     private notifRepo;
     private readRepo;
-    constructor(notifRepo: Repository<NotificationEntity>, readRepo: Repository<NotificationReadEntity>);
+    private tokenRepo;
+    private pushQueue;
+    constructor(notifRepo: Repository<NotificationEntity>, readRepo: Repository<NotificationReadEntity>, tokenRepo: Repository<DeviceTokenEntity>, pushQueue: PushQueueService);
+    registerToken(schoolId: number | null, userId: number, dto: RegisterTokenDto): Promise<{
+        message: string;
+    }>;
+    unregisterToken(userId: number, token: string): Promise<{
+        message: string;
+    }>;
     sendNotification(schoolId: number, sentBy: number, data: SendNotificationDto): Promise<{
         id: number;
         message: string;

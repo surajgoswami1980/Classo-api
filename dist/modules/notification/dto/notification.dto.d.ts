@@ -21,3 +21,7 @@ export declare class ListNotificationsQueryDto {
     limit?: number;
     unread?: string;
 }
+export declare class RegisterTokenDto {
+    token: string;
+    platform?: string;
+}

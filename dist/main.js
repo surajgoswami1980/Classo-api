@@ -15,8 +15,8 @@ async function bootstrap() {
         credentials: true,
     });
     const config = new swagger_1.DocumentBuilder()
-        .setTitle('School ERP API')
-        .setDescription('Multi-Tenant School ERP SaaS API')
+        .setTitle('Quilo API')
+        .setDescription('Quilo — Multi-Tenant SaaS ERP API')
         .setVersion('1.0')
         .addBearerAuth()
         .build();
@@ -24,7 +24,7 @@ async function bootstrap() {
     swagger_1.SwaggerModule.setup('api/docs', app, document);
     const port = process.env.PORT || 7002;
     await app.listen(port);
-    console.log(`🚀 School ERP API running on port ${port}`);
+    console.log(`🚀 Quilo API running on port ${port}`);
 }
 bootstrap();
 //# sourceMappingURL=main.js.map

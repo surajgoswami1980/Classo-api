@@ -12,6 +12,7 @@ import {
   SendNotificationDto,
   SendBulkNotificationDto,
   ListNotificationsQueryDto,
+  RegisterTokenDto,
 } from './dto/notification.dto';
 
 @ApiTags('Notification')
@@ -43,6 +44,27 @@ export class NotificationController {
     @CurrentUser('role') userRole: string,
   ) {
     const result = await this.notificationService.listNotifications(schoolId, userRole, userId, query);
+    return { success: true, data: result };
+  }
+
+  @Post('register-token')
+  @ApiOperation({ summary: 'Register this device\'s FCM push token for the current user' })
+  async registerToken(
+    @Body() body: RegisterTokenDto,
+    @SchoolId() schoolId: number,
+    @CurrentUser('user_id') userId: number,
+  ) {
+    const result = await this.notificationService.registerToken(schoolId ?? null, userId, body);
+    return { success: true, data: result };
+  }
+
+  @Post('unregister-token')
+  @ApiOperation({ summary: 'Deactivate a device token (on logout)' })
+  async unregisterToken(
+    @Body() body: { token: string },
+    @CurrentUser('user_id') userId: number,
+  ) {
+    const result = await this.notificationService.unregisterToken(userId, body?.token);
     return { success: true, data: result };
   }
 

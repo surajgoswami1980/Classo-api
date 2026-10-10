@@ -31,6 +31,7 @@ import { PayrollModule } from './modules/payroll/payroll.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { ReportModule } from './modules/report/report.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { BannerModule } from './modules/banner/banner.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
     SettingsModule,
     ReportModule,
     SuperAdminModule,
+    BannerModule,
   ],
 })
 export class AppModule implements NestModule {

@@ -28,3 +28,8 @@ export class ListNotificationsQueryDto {
   limit?: number;
   unread?: string;
 }
+
+export class RegisterTokenDto {
+  token: string;
+  platform?: string; // android | ios | web
+}

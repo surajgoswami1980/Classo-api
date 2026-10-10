@@ -13,14 +13,20 @@ const notification_controller_1 = require("./notification.controller");
 const notification_service_1 = require("./notification.service");
 const notification_entity_1 = require("../../entities/notification.entity");
 const notification_read_entity_1 = require("../../entities/notification-read.entity");
+const device_token_entity_1 = require("../../entities/device-token.entity");
+const push_queue_service_1 = require("./push-queue.service");
+const push_worker_service_1 = require("./push-worker.service");
+const firebase_service_1 = require("./firebase.service");
 let NotificationModule = class NotificationModule {
 };
 exports.NotificationModule = NotificationModule;
 exports.NotificationModule = NotificationModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([notification_entity_1.NotificationEntity, notification_read_entity_1.NotificationReadEntity])],
+        imports: [
+            typeorm_1.TypeOrmModule.forFeature([notification_entity_1.NotificationEntity, notification_read_entity_1.NotificationReadEntity, device_token_entity_1.DeviceTokenEntity]),
+        ],
         controllers: [notification_controller_1.NotificationController],
-        providers: [notification_service_1.NotificationService],
+        providers: [notification_service_1.NotificationService, push_queue_service_1.PushQueueService, push_worker_service_1.PushWorkerService, firebase_service_1.FirebaseService],
         exports: [notification_service_1.NotificationService],
     })
 ], NotificationModule);

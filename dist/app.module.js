@@ -34,6 +34,7 @@ const payroll_module_1 = require("./modules/payroll/payroll.module");
 const settings_module_1 = require("./modules/settings/settings.module");
 const report_module_1 = require("./modules/report/report.module");
 const super_admin_module_1 = require("./modules/super-admin/super-admin.module");
+const banner_module_1 = require("./modules/banner/banner.module");
 let AppModule = class AppModule {
     configure(consumer) {
         consumer
@@ -83,6 +84,7 @@ exports.AppModule = AppModule = __decorate([
             settings_module_1.SettingsModule,
             report_module_1.ReportModule,
             super_admin_module_1.SuperAdminModule,
+            banner_module_1.BannerModule,
         ],
     })
 ], AppModule);

@@ -35,7 +35,7 @@ let EmailService = EmailService_1 = class EmailService {
         }
         try {
             await this.client.send(new client_ses_1.SendEmailCommand({
-                Source: this.configService.get('SES_FROM_EMAIL') || 'no-reply@schoolerp.com',
+                Source: this.configService.get('SES_FROM_EMAIL') || 'no-reply@quilo.app',
                 Destination: { ToAddresses: [to] },
                 Message: {
                     Subject: { Data: subject },

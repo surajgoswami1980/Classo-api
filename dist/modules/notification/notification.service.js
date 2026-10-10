@@ -18,10 +18,43 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const notification_entity_1 = require("../../entities/notification.entity");
 const notification_read_entity_1 = require("../../entities/notification-read.entity");
+const device_token_entity_1 = require("../../entities/device-token.entity");
+const push_queue_service_1 = require("./push-queue.service");
 let NotificationService = class NotificationService {
-    constructor(notifRepo, readRepo) {
+    constructor(notifRepo, readRepo, tokenRepo, pushQueue) {
         this.notifRepo = notifRepo;
         this.readRepo = readRepo;
+        this.tokenRepo = tokenRepo;
+        this.pushQueue = pushQueue;
+    }
+    async registerToken(schoolId, userId, dto) {
+        if (!dto?.token)
+            throw new common_1.BadRequestException('token is required');
+        const existing = await this.tokenRepo.findOne({ where: { token: dto.token } });
+        if (existing) {
+            existing.user_id = userId;
+            existing.school_id = schoolId;
+            existing.platform = dto.platform || existing.platform || 'android';
+            existing.is_active = true;
+            existing.last_used_at = new Date();
+            await this.tokenRepo.save(existing);
+            return { message: 'Token updated' };
+        }
+        await this.tokenRepo.save(this.tokenRepo.create({
+            school_id: schoolId,
+            user_id: userId,
+            token: dto.token,
+            platform: dto.platform || 'android',
+            is_active: true,
+            last_used_at: new Date(),
+        }));
+        return { message: 'Token registered' };
+    }
+    async unregisterToken(userId, token) {
+        if (!token)
+            throw new common_1.BadRequestException('token is required');
+        await this.tokenRepo.update({ token, user_id: userId }, { is_active: false });
+        return { message: 'Token removed' };
     }
     async sendNotification(schoolId, sentBy, data) {
         const notification = this.notifRepo.create({
@@ -39,6 +72,11 @@ let NotificationService = class NotificationService {
             sent_at: new Date(),
         });
         const saved = await this.notifRepo.save(notification);
+        try {
+            await this.pushQueue.enqueue({ notification_id: saved.id, school_id: schoolId });
+        }
+        catch {
+        }
         return {
             id: saved.id,
             message: 'Notification sent successfully',
@@ -101,7 +139,10 @@ exports.NotificationService = NotificationService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(notification_entity_1.NotificationEntity)),
     __param(1, (0, typeorm_1.InjectRepository)(notification_read_entity_1.NotificationReadEntity)),
+    __param(2, (0, typeorm_1.InjectRepository)(device_token_entity_1.DeviceTokenEntity)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        typeorm_2.Repository,
+        push_queue_service_1.PushQueueService])
 ], NotificationService);
 //# sourceMappingURL=notification.service.js.map

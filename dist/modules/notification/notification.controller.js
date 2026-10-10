@@ -36,6 +36,14 @@ let NotificationController = class NotificationController {
         const result = await this.notificationService.listNotifications(schoolId, userRole, userId, query);
         return { success: true, data: result };
     }
+    async registerToken(body, schoolId, userId) {
+        const result = await this.notificationService.registerToken(schoolId ?? null, userId, body);
+        return { success: true, data: result };
+    }
+    async unregisterToken(body, userId) {
+        const result = await this.notificationService.unregisterToken(userId, body?.token);
+        return { success: true, data: result };
+    }
     async markAsRead(id, schoolId, userId) {
         const result = await this.notificationService.markAsRead(schoolId, id, userId);
         return { success: true, data: result };
@@ -69,6 +77,25 @@ __decorate([
     __metadata("design:paramtypes", [notification_dto_1.ListNotificationsQueryDto, Number, Number, String]),
     __metadata("design:returntype", Promise)
 ], NotificationController.prototype, "listNotifications", null);
+__decorate([
+    (0, common_1.Post)('register-token'),
+    (0, swagger_1.ApiOperation)({ summary: 'Register this device\'s FCM push token for the current user' }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, school_id_decorator_1.SchoolId)()),
+    __param(2, (0, current_user_decorator_1.CurrentUser)('user_id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [notification_dto_1.RegisterTokenDto, Number, Number]),
+    __metadata("design:returntype", Promise)
+], NotificationController.prototype, "registerToken", null);
+__decorate([
+    (0, common_1.Post)('unregister-token'),
+    (0, swagger_1.ApiOperation)({ summary: 'Deactivate a device token (on logout)' }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_user_decorator_1.CurrentUser)('user_id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Number]),
+    __metadata("design:returntype", Promise)
+], NotificationController.prototype, "unregisterToken", null);
 __decorate([
     (0, common_1.Put)(':id/read'),
     (0, swagger_1.ApiOperation)({ summary: 'Mark a notification as read for the current user' }),

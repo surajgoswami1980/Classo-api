@@ -1,12 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { NotificationEntity } from '../../entities/notification.entity';
 import { NotificationReadEntity } from '../../entities/notification-read.entity';
+import { DeviceTokenEntity } from '../../entities/device-token.entity';
+import { PushQueueService } from './push-queue.service';
 import {
   SendNotificationDto,
   SendBulkNotificationDto,
   ListNotificationsQueryDto,
+  RegisterTokenDto,
 } from './dto/notification.dto';
 
 @Injectable()
@@ -16,7 +19,51 @@ export class NotificationService {
     private notifRepo: Repository<NotificationEntity>,
     @InjectRepository(NotificationReadEntity)
     private readRepo: Repository<NotificationReadEntity>,
+    @InjectRepository(DeviceTokenEntity)
+    private tokenRepo: Repository<DeviceTokenEntity>,
+    private pushQueue: PushQueueService,
   ) {}
+
+  // ─── Device tokens (FCM) ─────────────────────────────────────────────
+
+  /**
+   * Register (or re-assign) an FCM device token to the current user. A token
+   * is globally unique: if it already exists for another user, it's moved to
+   * this user (device changed accounts). Idempotent per user+token.
+   */
+  async registerToken(schoolId: number | null, userId: number, dto: RegisterTokenDto) {
+    if (!dto?.token) throw new BadRequestException('token is required');
+
+    const existing = await this.tokenRepo.findOne({ where: { token: dto.token } });
+    if (existing) {
+      existing.user_id = userId;
+      existing.school_id = schoolId;
+      existing.platform = dto.platform || existing.platform || 'android';
+      existing.is_active = true;
+      existing.last_used_at = new Date();
+      await this.tokenRepo.save(existing);
+      return { message: 'Token updated' };
+    }
+
+    await this.tokenRepo.save(
+      this.tokenRepo.create({
+        school_id: schoolId,
+        user_id: userId,
+        token: dto.token,
+        platform: dto.platform || 'android',
+        is_active: true,
+        last_used_at: new Date(),
+      }),
+    );
+    return { message: 'Token registered' };
+  }
+
+  /** Deactivate a token (logout). */
+  async unregisterToken(userId: number, token: string) {
+    if (!token) throw new BadRequestException('token is required');
+    await this.tokenRepo.update({ token, user_id: userId }, { is_active: false });
+    return { message: 'Token removed' };
+  }
 
   async sendNotification(schoolId: number, sentBy: number, data: SendNotificationDto) {
     const notification = this.notifRepo.create({
@@ -35,6 +82,14 @@ export class NotificationService {
     });
 
     const saved = await this.notifRepo.save(notification);
+
+    // Enqueue push fan-out (Redis queue → worker). Non-blocking: if Redis is
+    // down the in-app notification is still saved and shown.
+    try {
+      await this.pushQueue.enqueue({ notification_id: saved.id, school_id: schoolId });
+    } catch {
+      // queue unavailable — in-app notification still works
+    }
 
     return {
       id: saved.id,

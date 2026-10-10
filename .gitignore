@@ -1,1 +1,14 @@
 /node_modules
+/dist
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*firebase-adminsdk*.json
+*serviceAccount*.json
+firebase-service-account.json
+
+# Logs / tmp
+*.log
+*.token_tmp
