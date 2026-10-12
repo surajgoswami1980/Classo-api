@@ -32,6 +32,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { ReportModule } from './modules/report/report.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { BannerModule } from './modules/banner/banner.module';
+import { StoreModule } from './modules/store/store.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { BannerModule } from './modules/banner/banner.module';
     ReportModule,
     SuperAdminModule,
     BannerModule,
+    StoreModule,
   ],
 })
 export class AppModule implements NestModule {

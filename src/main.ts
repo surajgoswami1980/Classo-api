@@ -23,9 +23,11 @@ async function bootstrap() {
     }),
   );
 
-  // CORS
+  // CORS — allow web (localhost) and the mobile app (any LAN origin / native
+  // requests which send no Origin header). Reflecting the request origin keeps
+  // credentials working while letting phones on the LAN reach the API.
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: true,
     credentials: true,
   });
 
@@ -39,8 +41,17 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
+  // Public, unauthenticated health check — handy for verifying the phone can
+  // reach the API from a browser (open http://<laptop-ip>:7002/health).
+  const http = app.getHttpAdapter();
+  http.get('/health', (_req: any, res: any) =>
+    res.json({ ok: true, service: 'quilo-api', time: new Date().toISOString() }),
+  );
+
   const port = process.env.PORT || 7002;
-  await app.listen(port);
-  console.log(`🚀 Quilo API running on port ${port}`);
+  // Bind to 0.0.0.0 so phones/other devices on the LAN can reach the API,
+  // not just localhost on this PC.
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Quilo API running on port ${port} (0.0.0.0)`);
 }
 bootstrap();

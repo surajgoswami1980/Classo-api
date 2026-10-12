@@ -141,6 +141,39 @@ export class AttendanceService {
     };
   }
 
+  /**
+   * A staff member's (teacher's) own monthly attendance — calendar view,
+   * mirroring getStudentMonthlyAttendance but keyed on staff_attendance.user_id.
+   */
+  async getMyStaffMonthlyAttendance(schoolId: number, userId: number, month: number, year: number) {
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    const records = await this.staffAttRepo
+      .createQueryBuilder('a')
+      .where('a.school_id = :schoolId', { schoolId })
+      .andWhere('a.user_id = :userId', { userId })
+      .andWhere('a.date BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .orderBy('a.date', 'ASC')
+      .getMany();
+
+    const summary = {
+      total_days: records.length,
+      present: records.filter((r) => r.status === 'present').length,
+      absent: records.filter((r) => r.status === 'absent').length,
+      late: records.filter((r) => r.status === 'late').length,
+      half_day: records.filter((r) => r.status === 'half_day').length,
+    };
+
+    return {
+      month,
+      year,
+      records: records.map((r) => ({ date: r.date, status: r.status, remarks: r.remarks })),
+      summary,
+    };
+  }
+
   async markStaffAttendance(schoolId: number, dto: MarkStaffAttendanceDto, markedBy: number) {
     const { date, attendance } = dto;
 

@@ -89,6 +89,19 @@ export class AttendanceController {
     return { success: true, data: result };
   }
 
+  @Get('staff/my-monthly')
+  @Roles(UserRole.TEACHER, UserRole.INCHARGE, UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN)
+  @ApiOperation({ summary: "A teacher's own monthly attendance (calendar view)" })
+  async getMyStaffMonthly(
+    @SchoolId() schoolId: number,
+    @CurrentUser('user_id') userId: number,
+    @Query('month') month: number,
+    @Query('year') year: number,
+  ) {
+    const result = await this.attendanceService.getMyStaffMonthlyAttendance(schoolId, userId, month, year);
+    return { success: true, data: result };
+  }
+
   @Get('staff/report')
   @Roles(UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN)
   @RequirePermissions(Permission.ATTENDANCE_REPORT)
