@@ -25,6 +25,9 @@ export class AssignmentEntity {
   @Column({ length: 255 })
   title: string;
 
+  @Column({ length: 255, nullable: true })
+  topic: string;
+
   @Column({ type: 'text', nullable: true })
   description: string;
 

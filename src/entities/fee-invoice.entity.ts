@@ -14,11 +14,26 @@ export class FeeInvoiceEntity {
   @Column()
   student_id: number;
 
-  @Column()
+  @Column({ nullable: true })
   fee_structure_id: number;
 
-  @Column()
+  @Column({ nullable: true })
   fee_installment_id: number;
+
+  @Column({ nullable: true })
+  fee_category_id: number;
+
+  @Column({ nullable: true })
+  exam_id: number;
+
+  @Column({ type: 'smallint', unsigned: true, nullable: true })
+  period_year: number;
+
+  @Column({ type: 'tinyint', unsigned: true, nullable: true })
+  period_month: number;
+
+  @Column({ length: 150, nullable: true })
+  title: string;
 
   @Column({ length: 50, unique: true })
   invoice_number: string;

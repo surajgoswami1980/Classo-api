@@ -1,7 +1,9 @@
-import { Controller, Get, Post, Body, Param, Res, NotFoundException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Res, NotFoundException, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles, UserRole } from '../../common/decorators/roles.decorator';
 import { SchoolId } from '../../common/decorators/school-id.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { StoreService } from './store.service';
@@ -70,5 +72,25 @@ export class StoreController {
     const html = this.invoiceService.generateInvoiceHtml(data);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
+  }
+
+  // ─── Admin (school admin / sub admin) ───────────────────────
+
+  @Get('admin/orders')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN)
+  @ApiOperation({ summary: 'Admin: list store orders for the school' })
+  async adminOrders(@SchoolId() schoolId: number, @Query('status') status?: string) {
+    const data = await this.storeService.adminListOrders(schoolId, status);
+    return { success: true, data };
+  }
+
+  @Post('admin/orders/:id/collect')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN)
+  @ApiOperation({ summary: 'Admin: mark a paid order as collected/completed' })
+  async adminCollect(@SchoolId() schoolId: number, @Param('id') id: number) {
+    const data = await this.storeService.adminMarkCollected(schoolId, Number(id));
+    return { success: true, data };
   }
 }

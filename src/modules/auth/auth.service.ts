@@ -451,6 +451,74 @@ export class AuthService {
   }
 
   /**
+   * School admin / sub admin login by email or phone + password, WITHOUT a
+   * school code — the school is resolved from the user's own record. Also
+   * transparently allows a platform super_admin to use the same screen.
+   */
+  async adminLogin(identifier: string, password: string) {
+    const user = await this.userRepo
+      .createQueryBuilder('u')
+      .where('u.is_active = :active', { active: true })
+      .andWhere('u.deleted_at IS NULL')
+      .andWhere('(u.email = :identifier OR u.phone = :identifier)', { identifier })
+      .getOne();
+
+    if (!user) throw new UnauthorizedException('Invalid credentials');
+
+    let storedPassword = user.password;
+    if (storedPassword.startsWith('$2y$')) {
+      storedPassword = '$2a$' + storedPassword.slice(4);
+    }
+    const isPasswordValid = await bcrypt.compare(password, storedPassword);
+    if (!isPasswordValid) throw new UnauthorizedException('Invalid credentials');
+
+    const roleRow = await this.userRepo.query(
+      `SELECT r.name FROM roles r JOIN model_has_roles mhr ON r.id = mhr.role_id WHERE mhr.model_id = ? AND mhr.model_type = 'App\\\\Models\\\\User' LIMIT 1`,
+      [user.id],
+    );
+    const role = roleRow?.[0]?.name ? this.normalizeRole(roleRow[0].name) : null;
+    const allowed = ['super_admin', 'school_admin', 'sub_admin'];
+    if (!role || !allowed.includes(role)) {
+      throw new ForbiddenException('This account does not have admin access');
+    }
+
+    // Load permissions for sub admins (school_admin/super_admin bypass checks).
+    let permissions: string[] = [];
+    if (role === 'sub_admin') {
+      const permRows = await this.userRepo.query(
+        `SELECT p.name FROM permissions p
+         JOIN model_has_permissions mhp ON p.id = mhp.permission_id
+         WHERE mhp.model_id = ? AND mhp.model_type = 'App\\\\Models\\\\User'`,
+        [user.id],
+      );
+      permissions = (permRows || []).map((r: any) => r.name);
+    }
+
+    user.last_login_at = new Date();
+    await this.userRepo.save(user);
+
+    let school: any = null;
+    if (user.school_id) {
+      const s = await this.schoolRepo.findOne({ where: { id: user.school_id } });
+      if (s) school = { id: s.id, name: s.name, code: s.code, logo: s.logo };
+    }
+
+    const payload = { user_id: user.id, school_id: user.school_id || null, role, permissions };
+    const access_token = this.jwtService.sign(payload);
+    const refresh_token = this.jwtService.sign(payload, {
+      secret: this.configService.get('JWT_REFRESH_SECRET'),
+      expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN') || '30d',
+    });
+
+    return {
+      access_token,
+      refresh_token,
+      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, role },
+      school,
+    };
+  }
+
+  /**
    * Request a password reset link. Always returns a generic success
    * message regardless of whether the account exists, so this endpoint
    * can't be used to enumerate valid identifiers. If the user has no

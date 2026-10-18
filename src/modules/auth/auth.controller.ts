@@ -31,6 +31,13 @@ export class AuthController {
     return { success: true, data: result };
   }
 
+  @Post('admin-login')
+  @ApiOperation({ summary: 'Login for school admin / sub admin by email or phone (no school code)' })
+  async adminLogin(@Body() dto: SuperAdminLoginDto) {
+    const result = await this.authService.adminLogin(dto.identifier, dto.password);
+    return { success: true, data: result };
+  }
+
   // ─── OTP Login ──────────────────────────────────────────────────────
 
   @Post('otp/availability')

@@ -26,6 +26,7 @@ export class AssignmentController {
       section_id: number;
       subject_id: number;
       title: string;
+      topic?: string;
       description?: string;
       due_date: string;
       max_marks?: number;
@@ -58,12 +59,51 @@ export class AssignmentController {
 
   @Get('student/list')
   @Roles(UserRole.STUDENT, UserRole.PARENT)
-  @ApiOperation({ summary: 'List assignments for a student (by their class)' })
+  @ApiOperation({ summary: 'List assignments for a student (by their class) with submission status' })
   async listStudentAssignments(
     @SchoolId() schoolId: number,
     @CurrentUser('user_id') userId: number,
   ) {
     const result = await this.assignmentService.listStudentAssignments(schoolId, userId);
+    return { success: true, data: result };
+  }
+
+  @Post(':id/submit')
+  @Roles(UserRole.STUDENT, UserRole.PARENT)
+  @ApiOperation({ summary: 'Student submits an assignment (text + optional image/pdf)' })
+  async submitAssignment(
+    @Param('id') id: number,
+    @Body() body: { description?: string; attachment_url?: string; attachment_type?: string },
+    @SchoolId() schoolId: number,
+    @CurrentUser('user_id') userId: number,
+  ) {
+    const result = await this.assignmentService.submitAssignment(schoolId, userId, id, body);
+    return { success: true, data: result };
+  }
+
+  @Get(':id/submissions')
+  @Roles(UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN, UserRole.TEACHER, UserRole.INCHARGE)
+  @RequirePermissions(Permission.ASSIGNMENT_VIEW)
+  @ApiOperation({ summary: 'List every student with their submission + marks (teacher/admin)' })
+  async listSubmissions(
+    @Param('id') id: number,
+    @SchoolId() schoolId: number,
+  ) {
+    const result = await this.assignmentService.listSubmissions(schoolId, id);
+    return { success: true, data: result };
+  }
+
+  @Post(':id/grade')
+  @Roles(UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN, UserRole.TEACHER, UserRole.INCHARGE)
+  @RequirePermissions(Permission.ASSIGNMENT_CREATE)
+  @ApiOperation({ summary: 'Award marks + feedback to a student submission' })
+  async gradeSubmission(
+    @Param('id') id: number,
+    @Body() body: { student_id: number; marks: number; feedback?: string },
+    @SchoolId() schoolId: number,
+    @CurrentUser('user_id') userId: number,
+  ) {
+    const result = await this.assignmentService.gradeSubmission(schoolId, userId, id, body.student_id, { marks: body.marks, feedback: body.feedback });
     return { success: true, data: result };
   }
 

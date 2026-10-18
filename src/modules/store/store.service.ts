@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { StudentEntity } from '../../entities/student.entity';
 
+import { PaymentGatewayService } from '../../common/providers/payment-gateway.service';
+
 const Razorpay = require('razorpay');
 
 /**
@@ -14,11 +16,10 @@ const Razorpay = require('razorpay');
  */
 @Injectable()
 export class StoreService {
-  private razorpay: any;
-
   constructor(
     @InjectRepository(StudentEntity) private studentRepo: Repository<StudentEntity>,
     private config: ConfigService,
+    private paymentGateway: PaymentGatewayService,
   ) {}
 
   private db() {
@@ -31,18 +32,6 @@ export class StoreService {
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
     const base = (this.config.get('ADMIN_PUBLIC_URL') || 'http://localhost:8000').replace(/\/$/, '');
     return `${base}/storage/${path}`;
-  }
-
-  private getRazorpay() {
-    if (!this.razorpay) {
-      const keyId = this.config.get('RAZORPAY_KEY_ID');
-      const keySecret = this.config.get('RAZORPAY_KEY_SECRET');
-      if (!keyId || !keySecret) {
-        throw new BadRequestException('Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to .env');
-      }
-      this.razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
-    }
-    return this.razorpay;
   }
 
   /** List active store items for the school. */
@@ -110,27 +99,29 @@ export class StoreService {
     const studentId = await this.resolveStudentId(schoolId, userId);
     const orderNumber = `STORE-${schoolId}-${Date.now().toString(36).toUpperCase()}`;
 
-    const rzpOrder = await this.getRazorpay().orders.create({
-      amount: Math.round(total * 100),
-      currency: 'INR',
-      receipt: orderNumber,
-      notes: { school_id: String(schoolId), store_item_id: String(itemId), user_id: String(userId) },
+    // Create the order on the SCHOOL's resolved gateway (client-wise routing).
+    const gwOrder = await this.paymentGateway.createOrder(schoolId, total, orderNumber, {
+      school_id: schoolId, store_item_id: itemId, user_id: userId,
+      name: prefill?.name, email: prefill?.email, phone: prefill?.contact || prefill?.phone,
     });
 
     await this.db().query(
       `INSERT INTO store_orders
         (school_id, store_item_id, user_id, student_id, order_number, item_name, quantity,
          unit_price, total_amount, status, payment_status, gateway, razorpay_order_id, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,'pending_payment','pending','razorpay',?,NOW(),NOW())`,
-      [schoolId, itemId, userId, studentId, orderNumber, item.name, qty, unitPrice, total, rzpOrder.id],
+       VALUES (?,?,?,?,?,?,?,?,?,'pending_payment','pending',?,?,NOW(),NOW())`,
+      [schoolId, itemId, userId, studentId, orderNumber, item.name, qty, unitPrice, total, gwOrder.provider, gwOrder.order_id],
     );
 
     return {
-      order_id: rzpOrder.id,
+      provider: gwOrder.provider,
+      order_id: gwOrder.order_id,
       order_number: orderNumber,
       amount: total,
       currency: 'INR',
-      razorpay_key: this.config.get('RAZORPAY_KEY_ID'),
+      razorpay_key: (gwOrder as any).key || null,
+      payment_session_id: (gwOrder as any).payment_session_id || null,
+      cashfree_env: (gwOrder as any).env || null,
       item: { id: item.id, name: item.name, price: unitPrice },
       prefill,
     };
@@ -141,12 +132,6 @@ export class StoreService {
    * collection) and decrement stock.
    */
   async verifyPurchase(schoolId: number, dto: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) {
-    const crypto = require('crypto');
-    const expected = crypto
-      .createHmac('sha256', this.config.get('RAZORPAY_KEY_SECRET'))
-      .update(dto.razorpay_order_id + '|' + dto.razorpay_payment_id)
-      .digest('hex');
-
     const orders = await this.db().query(
       `SELECT * FROM store_orders WHERE razorpay_order_id = ? AND school_id = ? LIMIT 1`,
       [dto.razorpay_order_id, schoolId],
@@ -154,7 +139,11 @@ export class StoreService {
     if (!orders.length) throw new NotFoundException('Order not found');
     const order = orders[0];
 
-    if (expected !== dto.razorpay_signature) {
+    const ok = await this.paymentGateway.verifyRazorpaySignature(
+      schoolId, dto.razorpay_order_id, dto.razorpay_payment_id, dto.razorpay_signature,
+    );
+
+    if (!ok) {
       await this.db().query(
         `UPDATE store_orders SET payment_status = 'failed', updated_at = NOW() WHERE id = ?`,
         [order.id],
@@ -195,6 +184,43 @@ export class StoreService {
       invoice_number: invoiceNumber,
       status: 'purchased',
     };
+  }
+
+  /** Admin: all store orders for the school, optional status filter. */
+  async adminListOrders(schoolId: number, status?: string) {
+    const rows = await this.db().query(
+      `SELECT o.*, u.name AS buyer_name, u.phone AS buyer_phone, i.image AS item_image
+       FROM store_orders o
+       LEFT JOIN users u ON u.id = o.user_id
+       LEFT JOIN store_items i ON i.id = o.store_item_id
+       WHERE o.school_id = ? ${status ? 'AND o.status = ?' : ''}
+       ORDER BY o.created_at DESC
+       LIMIT 200`,
+      status ? [schoolId, status] : [schoolId],
+    );
+    return rows.map((o: any) => ({
+      ...o,
+      total_amount: Number(o.total_amount),
+      unit_price: Number(o.unit_price),
+      image_url: this.assetUrl(o.item_image),
+    }));
+  }
+
+  /** Admin: mark a paid order as collected/completed. */
+  async adminMarkCollected(schoolId: number, orderId: number) {
+    const rows = await this.db().query(
+      `SELECT * FROM store_orders WHERE id = ? AND school_id = ? LIMIT 1`,
+      [orderId, schoolId],
+    );
+    if (!rows.length) throw new NotFoundException('Order not found');
+    if (rows[0].status !== 'purchased') {
+      throw new BadRequestException('Only paid (purchased) orders can be marked collected');
+    }
+    await this.db().query(
+      `UPDATE store_orders SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = ?`,
+      [orderId],
+    );
+    return { message: 'Order marked as collected', order_id: orderId, status: 'completed' };
   }
 
   /**

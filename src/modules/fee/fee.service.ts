@@ -7,13 +7,10 @@ import { FeeInvoiceEntity } from '../../entities/fee-invoice.entity';
 import { PaymentTransactionEntity } from '../../entities/payment-transaction.entity';
 import { StudentEntity } from '../../entities/student.entity';
 import { RedisService } from '../../common/providers/redis.service';
-
-const Razorpay = require('razorpay');
+import { PaymentGatewayService } from '../../common/providers/payment-gateway.service';
 
 @Injectable()
 export class FeeService {
-  private razorpay: any;
-
   constructor(
     @InjectRepository(FeeStructureEntity) private feeStructureRepo: Repository<FeeStructureEntity>,
     @InjectRepository(FeeInvoiceEntity) private invoiceRepo: Repository<FeeInvoiceEntity>,
@@ -21,19 +18,8 @@ export class FeeService {
     @InjectRepository(StudentEntity) private studentRepo: Repository<StudentEntity>,
     private configService: ConfigService,
     private redis: RedisService,
+    private paymentGateway: PaymentGatewayService,
   ) {}
-
-  private getRazorpay() {
-    if (!this.razorpay) {
-      const keyId = this.configService.get('RAZORPAY_KEY_ID');
-      const keySecret = this.configService.get('RAZORPAY_KEY_SECRET');
-      if (!keyId || !keySecret) {
-        throw new BadRequestException('Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to .env');
-      }
-      this.razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
-    }
-    return this.razorpay;
-  }
 
   // ─── Fee Structure ───────────────────────────────────────────
 
@@ -196,16 +182,14 @@ export class FeeService {
     invoice.total_amount = totalAmount;
     await this.invoiceRepo.save(invoice);
 
-    // Create Razorpay order
-    const order = await this.getRazorpay().orders.create({
-      amount: Math.round(totalAmount * 100), // Razorpay uses paise
-      currency: 'INR',
-      receipt: invoice.invoice_number,
-      notes: {
-        school_id: schoolId.toString(),
-        invoice_id: invoice.id.toString(),
-        student_id: invoice.student_id.toString(),
-      },
+    // Create an order on the SCHOOL's resolved gateway (client-wise routing).
+    const order = await this.paymentGateway.createOrder(schoolId, totalAmount, invoice.invoice_number, {
+      school_id: schoolId,
+      invoice_id: invoice.id,
+      student_id: invoice.student_id,
+      name: dto.name,
+      email: dto.email,
+      phone: dto.phone,
     });
 
     // Create transaction record
@@ -216,19 +200,22 @@ export class FeeService {
       parent_user_id: userId,
       amount: totalAmount,
       payment_method: dto.payment_method || 'upi',
-      gateway: 'razorpay',
-      razorpay_order_id: order.id,
+      gateway: order.provider,
+      razorpay_order_id: order.order_id,
       status: 'initiated',
       platform_commission: Math.round(totalAmount * 0.015 * 100) / 100, // 1.5% commission
     });
     await this.txnRepo.save(txn);
 
     return {
-      order_id: order.id,
+      provider: order.provider,
+      order_id: order.order_id,
       amount: totalAmount,
       currency: 'INR',
       invoice_number: invoice.invoice_number,
-      razorpay_key: this.configService.get('RAZORPAY_KEY_ID'),
+      razorpay_key: (order as any).key || null,
+      payment_session_id: (order as any).payment_session_id || null,
+      cashfree_env: (order as any).env || null,
       student_id: invoice.student_id,
       prefill: {
         name: dto.name || '',
@@ -241,17 +228,31 @@ export class FeeService {
   /**
    * Verify payment — called after Razorpay payment completion
    */
-  async verifyPayment(schoolId: number, dto: VerifyPaymentDto) {
-    const crypto = require('crypto');
+  async verifyPayment(schoolId: number, dto: VerifyPaymentDto & { cashfree_order_id?: string }) {
+    // Cashfree: no signature — confirm by fetching the order status.
+    if (dto.cashfree_order_id) {
+      const paid = await this.paymentGateway.verifyCashfreeOrder(schoolId, dto.cashfree_order_id);
+      const cfTxn = await this.txnRepo.findOne({ where: { razorpay_order_id: dto.cashfree_order_id, school_id: schoolId } });
+      if (!cfTxn) throw new NotFoundException('Transaction not found');
+      if (!paid) {
+        await this.txnRepo.update({ id: cfTxn.id }, { status: 'failed', failure_reason: 'Cashfree not paid' });
+        throw new BadRequestException('Payment not completed');
+      }
+      cfTxn.status = 'success';
+      await this.txnRepo.save(cfTxn);
+      await this.invoiceRepo.update({ id: cfTxn.fee_invoice_id, school_id: schoolId }, { status: 'paid', paid_date: new Date() });
+      return { message: 'Payment successful', transaction_id: cfTxn.id, amount: cfTxn.amount, invoice_id: cfTxn.fee_invoice_id };
+    }
 
-    // Verify Razorpay signature
-    const body = dto.razorpay_order_id + '|' + dto.razorpay_payment_id;
-    const expectedSignature = crypto
-      .createHmac('sha256', this.configService.get('RAZORPAY_KEY_SECRET'))
-      .update(body)
-      .digest('hex');
+    // Verify signature against the SCHOOL's own gateway secret (Razorpay).
+    const ok = await this.paymentGateway.verifyRazorpaySignature(
+      schoolId,
+      dto.razorpay_order_id,
+      dto.razorpay_payment_id,
+      dto.razorpay_signature,
+    );
 
-    if (expectedSignature !== dto.razorpay_signature) {
+    if (!ok) {
       // Mark transaction as failed
       await this.txnRepo.update(
         { razorpay_order_id: dto.razorpay_order_id, school_id: schoolId },

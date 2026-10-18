@@ -10,6 +10,7 @@ import { redisConfig } from './config/redis.config';
 // Common
 import { TenantMiddleware } from './common/middlewares/tenant.middleware';
 import { RedisModule } from './common/providers/redis.module';
+import { PaymentGatewayModule } from './common/providers/payment-gateway.module';
 
 // Modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -33,6 +34,8 @@ import { ReportModule } from './modules/report/report.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { BannerModule } from './modules/banner/banner.module';
 import { StoreModule } from './modules/store/store.module';
+import { EnquiryModule } from './modules/enquiry/enquiry.module';
+import { InvoiceModule } from './modules/invoice/invoice.module';
 
 @Module({
   imports: [
@@ -60,6 +63,9 @@ import { StoreModule } from './modules/store/store.module';
     // Redis
     RedisModule,
 
+    // Payment gateway resolver (client-wise Razorpay / Cashfree)
+    PaymentGatewayModule,
+
     // Feature Modules
     AuthModule,
     SchoolModule,
@@ -82,13 +88,15 @@ import { StoreModule } from './modules/store/store.module';
     SuperAdminModule,
     BannerModule,
     StoreModule,
+    EnquiryModule,
+    InvoiceModule,
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(TenantMiddleware)
-      .exclude('auth/{*path}', 'super-admin/{*path}', 'api/docs/{*path}')
+      .exclude('auth/{*path}', 'super-admin/{*path}', 'api/docs/{*path}', 'enquiry/{*path}', 'enquiry', 'health')
       .forRoutes('*path');
   }
 }
