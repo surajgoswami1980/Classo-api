@@ -6,8 +6,6 @@ import { StudentEntity } from '../../entities/student.entity';
 
 import { PaymentGatewayService } from '../../common/providers/payment-gateway.service';
 
-const Razorpay = require('razorpay');
-
 /**
  * Student-facing store: browse active items, purchase (pay online via
  * Razorpay). An order is created as pending_payment, then flips to
@@ -99,7 +97,7 @@ export class StoreService {
     const studentId = await this.resolveStudentId(schoolId, userId);
     const orderNumber = `STORE-${schoolId}-${Date.now().toString(36).toUpperCase()}`;
 
-    // Create the order on the SCHOOL's resolved gateway (client-wise routing).
+    // Order on the platform gateway; school share is split via Route / Easy Split.
     const gwOrder = await this.paymentGateway.createOrder(schoolId, total, orderNumber, {
       school_id: schoolId, store_item_id: itemId, user_id: userId,
       name: prefill?.name, email: prefill?.email, phone: prefill?.contact || prefill?.phone,
@@ -108,9 +106,14 @@ export class StoreService {
     await this.db().query(
       `INSERT INTO store_orders
         (school_id, store_item_id, user_id, student_id, order_number, item_name, quantity,
-         unit_price, total_amount, status, payment_status, gateway, razorpay_order_id, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,'pending_payment','pending',?,?,NOW(),NOW())`,
-      [schoolId, itemId, userId, studentId, orderNumber, item.name, qty, unitPrice, total, gwOrder.provider, gwOrder.order_id],
+         unit_price, total_amount, platform_fee, gateway_fee, school_share, split_status, split_account,
+         status, payment_status, gateway, razorpay_order_id, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending_payment','pending',?,?,NOW(),NOW())`,
+      [
+        schoolId, itemId, userId, studentId, orderNumber, item.name, qty, unitPrice, total,
+        gwOrder.platform_fee, gwOrder.gateway_fee, gwOrder.school_share, gwOrder.split_status, gwOrder.split_account,
+        gwOrder.provider, gwOrder.order_id,
+      ],
     );
 
     return {
@@ -131,17 +134,27 @@ export class StoreService {
    * Verify payment signature → flip order to "purchased" (paid, awaiting
    * collection) and decrement stock.
    */
-  async verifyPurchase(schoolId: number, dto: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) {
+  async verifyPurchase(
+    schoolId: number,
+    dto: { razorpay_order_id?: string; razorpay_payment_id?: string; razorpay_signature?: string; cashfree_order_id?: string },
+  ) {
+    const orderId = dto.cashfree_order_id || dto.razorpay_order_id;
+    if (!orderId) throw new BadRequestException('Order id is required');
     const orders = await this.db().query(
       `SELECT * FROM store_orders WHERE razorpay_order_id = ? AND school_id = ? LIMIT 1`,
-      [dto.razorpay_order_id, schoolId],
+      [orderId, schoolId],
     );
     if (!orders.length) throw new NotFoundException('Order not found');
     const order = orders[0];
 
-    const ok = await this.paymentGateway.verifyRazorpaySignature(
-      schoolId, dto.razorpay_order_id, dto.razorpay_payment_id, dto.razorpay_signature,
-    );
+    if (order.payment_status === 'paid') {
+      return { message: 'Already verified', order_number: order.order_number, invoice_number: order.invoice_number };
+    }
+
+    const ok =
+      order.gateway === 'cashfree'
+        ? await this.paymentGateway.verifyCashfreeOrder(orderId, Number(order.total_amount))
+        : await this.paymentGateway.verifyRazorpaySignature(orderId, dto.razorpay_payment_id, dto.razorpay_signature);
 
     if (!ok) {
       await this.db().query(
@@ -166,10 +179,11 @@ export class StoreService {
 
     await this.db().query(
       `UPDATE store_orders
-       SET payment_status = 'paid', status = 'purchased', razorpay_payment_id = ?,
-           invoice_number = ?, paid_at = NOW(), invoiced_at = NOW(), updated_at = NOW()
+       SET payment_status = 'paid', status = 'purchased', razorpay_payment_id = COALESCE(?, razorpay_payment_id),
+           invoice_number = ?, split_status = IF(split_status = 'pending', 'scheduled', split_status),
+           paid_at = NOW(), invoiced_at = NOW(), updated_at = NOW()
        WHERE id = ?`,
-      [dto.razorpay_payment_id, invoiceNumber, order.id],
+      [dto.razorpay_payment_id || null, invoiceNumber, order.id],
     );
 
     // Decrement stock if tracked.

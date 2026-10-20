@@ -52,7 +52,7 @@ export class StoreController {
   @ApiOperation({ summary: 'Verify Razorpay payment and mark order purchased' })
   async verify(
     @SchoolId() schoolId: number,
-    @Body() body: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string },
+    @Body() body: { razorpay_order_id?: string; razorpay_payment_id?: string; razorpay_signature?: string; cashfree_order_id?: string },
   ) {
     const data = await this.storeService.verifyPurchase(schoolId, body);
     return { success: true, data };

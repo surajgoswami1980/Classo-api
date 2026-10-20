@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, UseGuards, Req, Res, HttpCode } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, UseGuards, Req, HttpCode, Headers, type RawBodyRequest } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import {
@@ -106,10 +106,20 @@ export class FeeController {
 
   @Post('payment/webhook')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Razorpay webhook endpoint (no auth required)' })
-  async webhook(@Req() req: Request) {
-    const result = await this.feeService.handleWebhook(req.body);
-    return result;
+  @ApiOperation({ summary: 'Razorpay webhook (signature-verified) — payments + Route transfers' })
+  async webhook(@Req() req: RawBodyRequest<Request>, @Headers('x-razorpay-signature') signature: string) {
+    return this.feeService.handleWebhook(req.body, req.rawBody, signature);
+  }
+
+  @Post('payment/webhook/cashfree')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Cashfree webhook (signature-verified) — Easy Split payments' })
+  async cashfreeWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('x-webhook-signature') signature: string,
+    @Headers('x-webhook-timestamp') timestamp: string,
+  ) {
+    return this.feeService.handleCashfreeWebhook(req.body, req.rawBody, signature, timestamp);
   }
 
   @Post('payment/offline/:invoiceId')

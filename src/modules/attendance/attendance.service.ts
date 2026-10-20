@@ -5,6 +5,22 @@ import { StudentAttendanceEntity } from '../../entities/student-attendance.entit
 import { StaffAttendanceEntity } from '../../entities/staff-attendance.entity';
 import { StudentEntity } from '../../entities/student.entity';
 import { MarkStudentAttendanceDto, MarkStaffAttendanceDto, AttendanceReportDto } from './dto/attendance.dto';
+import { AttendanceConfigService, zonedNow } from './attendance-config.service';
+import { DayInfo, HolidayService, toDateStr } from './holiday.service';
+
+function monthRange(month: number, year: number) {
+  const m = Number(month);
+  const y = Number(year);
+  const lastDay = new Date(y, m, 0).getDate();
+  return {
+    startDate: `${y}-${String(m).padStart(2, '0')}-01`,
+    endDate: `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+  };
+}
+
+function emptySummary() {
+  return { total_days: 0, present: 0, absent: 0, late: 0, half_day: 0, leave: 0, holidays: 0, percentage: 0 };
+}
 
 @Injectable()
 export class AttendanceService {
@@ -15,14 +31,18 @@ export class AttendanceService {
     private staffAttRepo: Repository<StaffAttendanceEntity>,
     @InjectRepository(StudentEntity)
     private studentRepo: Repository<StudentEntity>,
+    private readonly holidays: HolidayService,
+    private readonly configs: AttendanceConfigService,
   ) {}
 
   async markStudentAttendance(schoolId: number, dto: MarkStudentAttendanceDto, markedBy: number) {
     const { class_id, section_id, date, attendance } = dto;
 
-    if (new Date(date) > new Date()) {
+    const cfg = await this.configs.get(schoolId);
+    if (date > zonedNow(cfg.timezone).date) {
       throw new BadRequestException('Cannot mark attendance for a future date');
     }
+    await this.assertWorkingDay(schoolId, date, 'students');
 
     const results: StudentAttendanceEntity[] = [];
     for (const item of attendance) {
@@ -97,6 +117,9 @@ export class AttendanceService {
     year: number,
     studentId?: number,
   ) {
+    const { startDate, endDate } = monthRange(month, year);
+    const holidays = await this.monthHolidays(schoolId, startDate, endDate, 'students');
+
     // If studentId not provided, find student by user_id
     let targetStudentId = studentId;
     if (!targetStudentId) {
@@ -106,14 +129,9 @@ export class AttendanceService {
       if (student) {
         targetStudentId = student.id;
       } else {
-        return { records: [], summary: { total_days: 0, present: 0, absent: 0, late: 0, half_day: 0 } };
+        return { month, year, records: [], holidays, summary: emptySummary() };
       }
     }
-
-    // Build date range for the month
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
     const records = await this.studentAttRepo
       .createQueryBuilder('a')
@@ -123,32 +141,23 @@ export class AttendanceService {
       .orderBy('a.date', 'ASC')
       .getMany();
 
-    // Calculate summary
-    const summary = {
-      total_days: records.length,
-      present: records.filter((r) => r.status === 'present').length,
-      absent: records.filter((r) => r.status === 'absent').length,
-      late: records.filter((r) => r.status === 'late').length,
-      half_day: records.filter((r) => r.status === 'half_day').length,
-    };
-
     return {
       month,
       year,
       student_id: targetStudentId,
-      records: records.map((r) => ({ date: r.date, status: r.status, remarks: r.remarks })),
-      summary,
+      records: records.map((r) => ({ date: toDateStr(r.date), status: r.status, remarks: r.remarks })),
+      holidays,
+      summary: await this.summarise(schoolId, records, holidays, 'students'),
     };
   }
 
   /**
-   * A staff member's (teacher's) own monthly attendance — calendar view,
-   * mirroring getStudentMonthlyAttendance but keyed on staff_attendance.user_id.
+   * A staff member's own monthly attendance — calendar view, including holidays,
+   * check-in/out times and how each day was marked.
    */
   async getMyStaffMonthlyAttendance(schoolId: number, userId: number, month: number, year: number) {
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const { startDate, endDate } = monthRange(month, year);
+    const holidays = await this.monthHolidays(schoolId, startDate, endDate, 'staff');
 
     const records = await this.staffAttRepo
       .createQueryBuilder('a')
@@ -158,24 +167,85 @@ export class AttendanceService {
       .orderBy('a.date', 'ASC')
       .getMany();
 
-    const summary = {
-      total_days: records.length,
-      present: records.filter((r) => r.status === 'present').length,
-      absent: records.filter((r) => r.status === 'absent').length,
-      late: records.filter((r) => r.status === 'late').length,
-      half_day: records.filter((r) => r.status === 'half_day').length,
-    };
-
     return {
       month,
       year,
-      records: records.map((r) => ({ date: r.date, status: r.status, remarks: r.remarks })),
-      summary,
+      records: records.map((r) => ({
+        date: toDateStr(r.date),
+        status: r.status,
+        remarks: r.remarks,
+        method: r.method,
+        check_in_time: r.check_in_time,
+        check_out_time: r.check_out_time,
+        late_minutes: r.late_minutes,
+      })),
+      holidays,
+      summary: await this.summarise(schoolId, records, holidays, 'staff'),
     };
+  }
+
+  /** Upcoming holidays for calendars and dashboards. */
+  async upcomingHolidays(schoolId: number, role: string) {
+    const cfg = await this.configs.get(schoolId);
+    const today = zonedNow(cfg.timezone).date;
+    const audience = ['student', 'parent'].includes(role) ? 'students' : 'staff';
+    const list = await this.holidays.upcoming(schoolId, today, audience, 15);
+    return list.map((h) => ({
+      id: h.id,
+      title: h.title,
+      description: h.description,
+      start_date: toDateStr(h.start_date),
+      end_date: toDateStr(h.end_date),
+      type: h.type,
+      applies_to: h.applies_to,
+    }));
+  }
+
+  private async monthHolidays(schoolId: number, from: string, to: string, audience: 'students' | 'staff') {
+    const off = await this.holidays.nonWorkingDays(schoolId, from, to, audience);
+    return [...off.values()];
+  }
+
+  /**
+   * Percentage = attended ÷ working days so far. Holidays and weekly offs never count.
+   * Half day = 0.5. Late counts as attended.
+   */
+  private async summarise(
+    schoolId: number,
+    records: { date: string; status: string }[],
+    holidays: DayInfo[],
+    audience: 'students' | 'staff',
+  ) {
+    const offDates = new Set(holidays.map((h) => h.date));
+    const counted = records.filter((r) => !offDates.has(toDateStr(r.date)));
+    const s = {
+      total_days: counted.length,
+      present: counted.filter((r) => r.status === 'present').length,
+      absent: counted.filter((r) => r.status === 'absent').length,
+      late: counted.filter((r) => r.status === 'late').length,
+      half_day: counted.filter((r) => r.status === 'half_day').length,
+      leave: counted.filter((r) => r.status === 'leave').length,
+      holidays: holidays.filter((h) => h.kind === 'holiday').length,
+      percentage: 0,
+    };
+    const attended = s.present + s.late + s.half_day * 0.5;
+    s.percentage = s.total_days > 0 ? Math.round((attended / s.total_days) * 100) : 0;
+    return { ...s, audience };
+  }
+
+  /** Throws if the date is a holiday / weekly off for the audience. */
+  async assertWorkingDay(schoolId: number, date: string, audience: 'students' | 'staff') {
+    const off = await this.holidays.dayOff(schoolId, date, audience);
+    if (off) {
+      throw new BadRequestException(
+        off.kind === 'holiday' ? `${date} is a holiday (${off.title}). Attendance cannot be marked.` : `${date} is a weekly off day.`,
+      );
+    }
   }
 
   async markStaffAttendance(schoolId: number, dto: MarkStaffAttendanceDto, markedBy: number) {
     const { date, attendance } = dto;
+    await this.assertWorkingDay(schoolId, date, 'staff');
 
     const results: StaffAttendanceEntity[] = [];
     for (const item of attendance) {
@@ -184,6 +254,8 @@ export class AttendanceService {
       });
 
       if (existing) {
+        // An admin override of a self/biometric check-in keeps the times and becomes manual.
+        if (existing.status !== item.status) existing.method = 'manual';
         existing.status = item.status;
         existing.check_in_time = item.check_in_time ? new Date(item.check_in_time) : existing.check_in_time;
         existing.check_out_time = item.check_out_time ? new Date(item.check_out_time) : existing.check_out_time;
@@ -196,6 +268,7 @@ export class AttendanceService {
           user_id: item.user_id,
           date,
           status: item.status,
+          method: 'manual',
           check_in_time: item.check_in_time ? new Date(item.check_in_time) : undefined,
           check_out_time: item.check_out_time ? new Date(item.check_out_time) : undefined,
           remarks: item.remarks,

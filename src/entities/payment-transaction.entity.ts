@@ -31,8 +31,8 @@ export class PaymentTransactionEntity {
   @Column({ type: 'enum', enum: ['upi', 'credit_card', 'debit_card', 'net_banking', 'cash', 'cheque'] })
   payment_method: string;
 
-  @Column({ type: 'enum', enum: ['razorpay', 'offline'], default: 'razorpay' })
-  gateway: string;
+  @Column({ length: 20, default: 'razorpay' })
+  gateway: string; // 'razorpay' | 'cashfree' | 'offline'
 
   @Column({ length: 100, nullable: true })
   razorpay_order_id: string;
@@ -54,6 +54,26 @@ export class PaymentTransactionEntity {
 
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   platform_commission: number;
+
+  /** Route / split fee recovered from the school's share. */
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  gateway_fee: number;
+
+  /** Amount transferred (or owed) to the school. */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  school_share: number;
+
+  /** pending | scheduled | processed | failed | manual — null for offline. */
+  @Column({ length: 20, nullable: true })
+  split_status: string;
+
+  /** Razorpay linked account (acc_...) or Cashfree vendor id. */
+  @Column({ length: 60, nullable: true })
+  split_account: string;
+
+  /** Gateway transfer / split reference once known. */
+  @Column({ length: 100, nullable: true })
+  split_reference: string;
 
   @CreateDateColumn()
   created_at: Date;

@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
+import { PlatformSettingsService } from '../../common/providers/platform-settings.service';
 
 export interface FcmSendResult {
   successCount: number;
@@ -10,72 +12,80 @@ export interface FcmSendResult {
 }
 
 /**
- * FCM push sender. Firebase Admin is loaded lazily via require() so the API
- * compiles and runs WITHOUT the `firebase-admin` package installed. When
- * both the package and a service-account are present it sends real pushes;
- * otherwise it logs what it would have sent (dev-safe), exactly like the
- * SMS/email services.
+ * FCM push sender. The service account comes from Admin → Integrations →
+ * Firebase (platform_settings), falling back to FIREBASE_SERVICE_ACCOUNT_JSON
+ * or the FIREBASE_SERVICE_ACCOUNT file path in .env.
  *
- * To enable real push:
- *   1) npm i firebase-admin
- *   2) set FIREBASE_SERVICE_ACCOUNT=/abs/path/to/serviceAccount.json
- *      (or FIREBASE_SERVICE_ACCOUNT_JSON='{...}')
+ * firebase-admin is loaded lazily so the API runs without it installed
+ * (`npm i firebase-admin` to send real pushes). Without it, or without a
+ * service account, pushes are logged instead (dev-safe).
+ *
+ * Saving a new service account in the panel re-initialises Firebase on the
+ * next send (settings cache is ~60s) — no restart needed.
  */
 @Injectable()
 export class FirebaseService {
   private readonly logger = new Logger(FirebaseService.name);
-  private app: any = null;
   private messaging: any = null;
-  private initialized = false;
+  private credsHash: string | null = null;
+  private appSeq = 0;
+  private warnedMissingPkg = false;
 
-  constructor(private config: ConfigService) {}
+  constructor(
+    private config: ConfigService,
+    private settings: PlatformSettingsService,
+  ) {}
 
-  private init(): void {
-    if (this.initialized) return;
-    this.initialized = true;
+  private async serviceAccountJson(): Promise<string | null> {
+    const fromPanel = await this.settings.get('firebase', 'service_account_json');
+    if (fromPanel) return fromPanel;
+    const path = this.config.get('FIREBASE_SERVICE_ACCOUNT');
+    if (path && fs.existsSync(path)) return fs.readFileSync(path, 'utf8');
+    return null;
+  }
+
+  /** Returns a live messaging client, or null in log-only mode. */
+  private async getMessaging(): Promise<any> {
+    if (!(await this.settings.bool('firebase', 'enabled'))) return null;
+
+    const json = await this.serviceAccountJson();
+    if (!json) return null;
+    const hash = crypto.createHash('sha256').update(json).digest('hex');
+    if (this.messaging && this.credsHash === hash) return this.messaging;
 
     let admin: any;
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       admin = require('firebase-admin');
     } catch {
-      this.logger.warn('firebase-admin not installed — push notifications run in log-only mode.');
-      return;
-    }
-
-    const credsJson = this.config.get('FIREBASE_SERVICE_ACCOUNT_JSON');
-    const credsPath = this.config.get('FIREBASE_SERVICE_ACCOUNT');
-
-    let serviceAccount: any = null;
-    try {
-      if (credsJson) {
-        serviceAccount = JSON.parse(credsJson);
-      } else if (credsPath && fs.existsSync(credsPath)) {
-        serviceAccount = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+      if (!this.warnedMissingPkg) {
+        this.logger.warn('firebase-admin not installed — push notifications run in log-only mode.');
+        this.warnedMissingPkg = true;
       }
-    } catch (e: any) {
-      this.logger.error(`Failed to parse Firebase service account: ${e.message}`);
-    }
-
-    if (!serviceAccount) {
-      this.logger.warn('No Firebase service account configured — push runs in log-only mode.');
-      return;
+      return null;
     }
 
     try {
-      this.app = admin.apps?.length
-        ? admin.app()
-        : admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-      this.messaging = this.app.messaging();
-      this.logger.log('Firebase Admin initialized — push notifications are live.');
+      const serviceAccount = JSON.parse(json);
+      // A fresh named app per credential set, so a key change in the panel takes effect.
+      const app = admin.initializeApp(
+        { credential: admin.credential.cert(serviceAccount) },
+        `quilo-${++this.appSeq}`,
+      );
+      this.messaging = app.messaging();
+      this.credsHash = hash;
+      this.logger.log(`Firebase initialised for project ${serviceAccount.project_id || '(unknown)'} — push is live.`);
+      return this.messaging;
     } catch (e: any) {
       this.logger.error(`Firebase init failed: ${e.message}`);
+      this.messaging = null;
+      this.credsHash = hash; // don't retry a broken key on every send
+      return null;
     }
   }
 
-  get isLive(): boolean {
-    this.init();
-    return !!this.messaging;
+  async isLive(): Promise<boolean> {
+    return !!(await this.getMessaging());
   }
 
   /**
@@ -89,13 +99,13 @@ export class FirebaseService {
     body: string,
     data: Record<string, string> = {},
   ): Promise<FcmSendResult> {
-    this.init();
     const unique = [...new Set(tokens.filter(Boolean))];
     if (unique.length === 0) {
       return { successCount: 0, failureCount: 0, invalidTokens: [] };
     }
 
-    if (!this.messaging) {
+    const messaging = await this.getMessaging();
+    if (!messaging) {
       this.logger.warn(`[DEV push] "${title}" → ${unique.length} token(s): ${body}`);
       return { successCount: unique.length, failureCount: 0, invalidTokens: [] };
     }
@@ -108,7 +118,7 @@ export class FirebaseService {
     for (let i = 0; i < unique.length; i += 500) {
       const batch = unique.slice(i, i + 500);
       try {
-        const res = await this.messaging.sendEachForMulticast({
+        const res = await messaging.sendEachForMulticast({
           tokens: batch,
           notification: { title, body },
           data,

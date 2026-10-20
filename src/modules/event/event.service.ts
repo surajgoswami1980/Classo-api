@@ -7,6 +7,7 @@ import { EventRegistrationEntity } from '../../entities/event-registration.entit
 import { PaymentTransactionEntity } from '../../entities/payment-transaction.entity';
 import { StudentEntity } from '../../entities/student.entity';
 import { NotificationService } from '../notification/notification.service';
+import { PaymentGatewayService } from '../../common/providers/payment-gateway.service';
 import {
   CreateEventDto,
   UpdateEventDto,
@@ -15,12 +16,8 @@ import {
   VerifyEventPaymentDto,
 } from './dto/event.dto';
 
-const Razorpay = require('razorpay');
-
 @Injectable()
 export class EventService {
-  private razorpay: any;
-
   constructor(
     @InjectRepository(EventEntity) private eventRepo: Repository<EventEntity>,
     @InjectRepository(EventRegistrationEntity) private regRepo: Repository<EventRegistrationEntity>,
@@ -28,19 +25,8 @@ export class EventService {
     @InjectRepository(StudentEntity) private studentRepo: Repository<StudentEntity>,
     private configService: ConfigService,
     private readonly notificationService: NotificationService,
+    private readonly paymentGateway: PaymentGatewayService,
   ) {}
-
-  private getRazorpay() {
-    if (!this.razorpay) {
-      const keyId = this.configService.get('RAZORPAY_KEY_ID');
-      const keySecret = this.configService.get('RAZORPAY_KEY_SECRET');
-      if (!keyId || !keySecret) {
-        throw new BadRequestException('Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to .env');
-      }
-      this.razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret });
-    }
-    return this.razorpay;
-  }
 
   // ─── Admin: CRUD ─────────────────────────────────────────────
 
@@ -289,16 +275,22 @@ export class EventService {
     }
     await this.regRepo.save(registration);
 
-    const order = await this.getRazorpay().orders.create({
-      amount: Math.round(Number(event.fee) * 100),
-      currency: 'INR',
-      receipt: `EVT-${event.id}-${registration.id}`,
-      notes: {
-        school_id: String(schoolId),
-        event_id: String(event.id),
-        registration_id: String(registration.id),
+    // Order on the platform gateway; school share is split via Route / Easy Split.
+    const fee = Number(event.fee);
+    const order = await this.paymentGateway.createOrder(
+      schoolId,
+      fee,
+      `EVT-${schoolId}-${event.id}-${registration.id}-${Date.now().toString(36)}`,
+      {
+        school_id: schoolId,
+        event_id: event.id,
+        registration_id: registration.id,
+        user_id: userId,
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
       },
-    });
+    );
 
     const txn = this.txnRepo.create({
       school_id: schoolId,
@@ -306,12 +298,16 @@ export class EventService {
       event_registration_id: registration.id,
       student_id: student?.id ?? 0,
       parent_user_id: userId,
-      amount: event.fee,
+      amount: fee,
       payment_method: 'upi',
-      gateway: 'razorpay',
-      razorpay_order_id: order.id,
+      gateway: order.provider,
+      razorpay_order_id: order.order_id,
       status: 'initiated',
-      platform_commission: Math.round(Number(event.fee) * 0.015 * 100) / 100,
+      platform_commission: order.platform_fee,
+      gateway_fee: order.gateway_fee,
+      school_share: order.school_share,
+      split_status: order.split_status,
+      split_account: order.split_account,
     });
     await this.txnRepo.save(txn);
 
@@ -320,34 +316,42 @@ export class EventService {
 
     return {
       paid: true,
-      order_id: order.id,
-      amount: Number(event.fee),
+      provider: order.provider,
+      order_id: order.order_id,
+      amount: fee,
       currency: 'INR',
-      razorpay_key: this.configService.get('RAZORPAY_KEY_ID'),
+      razorpay_key: order.key || null,
+      payment_session_id: order.payment_session_id || null,
+      cashfree_env: order.env || null,
       registration_id: registration.id,
       prefill: { name: dto.name || '', email: dto.email || '', contact: dto.phone || '' },
     };
   }
 
   /**
-   * Verify a paid-event Razorpay payment and confirm the registration.
+   * Verify a paid-event payment (Razorpay signature or Cashfree order status)
+   * and confirm the registration.
    */
   async verifyPayment(schoolId: number, userId: number, dto: VerifyEventPaymentDto) {
-    const crypto = require('crypto');
-    const body = dto.razorpay_order_id + '|' + dto.razorpay_payment_id;
-    const expected = crypto
-      .createHmac('sha256', this.configService.get('RAZORPAY_KEY_SECRET'))
-      .update(body)
-      .digest('hex');
+    const orderId = dto.cashfree_order_id || dto.razorpay_order_id;
+    if (!orderId) throw new BadRequestException('Order id is required');
 
     const txn = await this.txnRepo.findOne({
-      where: { razorpay_order_id: dto.razorpay_order_id, school_id: schoolId, payable_type: 'event' },
+      where: { razorpay_order_id: orderId, school_id: schoolId, payable_type: 'event' },
     });
     if (!txn) throw new NotFoundException('Transaction not found');
+    if (txn.status === 'success') {
+      return { message: 'Payment already verified', registration_id: txn.event_registration_id };
+    }
 
-    if (expected !== dto.razorpay_signature) {
+    const ok =
+      txn.gateway === 'cashfree'
+        ? await this.paymentGateway.verifyCashfreeOrder(orderId, Number(txn.amount))
+        : await this.paymentGateway.verifyRazorpaySignature(orderId, dto.razorpay_payment_id, dto.razorpay_signature);
+
+    if (!ok) {
       txn.status = 'failed';
-      txn.failure_reason = 'Signature verification failed';
+      txn.failure_reason = 'Payment verification failed';
       await this.txnRepo.save(txn);
       if (txn.event_registration_id) {
         await this.regRepo.update({ id: txn.event_registration_id }, { payment_status: 'failed' });
@@ -355,9 +359,12 @@ export class EventService {
       throw new BadRequestException('Payment verification failed');
     }
 
-    txn.razorpay_payment_id = dto.razorpay_payment_id;
-    txn.razorpay_signature = dto.razorpay_signature;
+    if (txn.gateway !== 'cashfree') {
+      txn.razorpay_payment_id = dto.razorpay_payment_id;
+      txn.razorpay_signature = dto.razorpay_signature;
+    }
     txn.status = 'success';
+    txn.split_status = this.paymentGateway.paidSplitStatus(txn.split_status);
     await this.txnRepo.save(txn);
 
     const registration = await this.regRepo.findOne({ where: { id: txn.event_registration_id, school_id: schoolId } });

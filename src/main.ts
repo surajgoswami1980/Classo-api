@@ -1,10 +1,17 @@
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody is required to verify Razorpay / Cashfree webhook signatures.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+
+  // Face check-in sends two compressed selfies (~100–300 KB each as base64).
+  app.useBodyParser('json', { limit: '3mb' });
+  // ZKTeco / eSSL fingerprint machines POST attendance logs as plain text.
+  app.useBodyParser('text', { type: ['text/*', 'application/octet-stream'], limit: '2mb' });
 
   // Global validation pipe.
   // NOTE: `whitelist`/`forbidNonWhitelisted` are intentionally OFF — every

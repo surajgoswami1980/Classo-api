@@ -9,13 +9,20 @@ import { Roles, UserRole } from '../../common/decorators/roles.decorator';
 import { RequirePermissions, Permission } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SchoolId } from '../../common/decorators/school-id.decorator';
+import { CheckDto, SelfAttendanceService, SELF_ATTENDANCE_ROLES } from './self-attendance.service';
+
+const SELF_ROLES = SELF_ATTENDANCE_ROLES as UserRole[];
+const ALL_ROLES = Object.values(UserRole);
 
 @ApiTags('Attendance')
 @Controller('attendance')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class AttendanceController {
-  constructor(private readonly attendanceService: AttendanceService) {}
+  constructor(
+    private readonly attendanceService: AttendanceService,
+    private readonly selfService: SelfAttendanceService,
+  ) {}
 
   // ─── Student Attendance ─────────────────────────────────
 
@@ -90,8 +97,8 @@ export class AttendanceController {
   }
 
   @Get('staff/my-monthly')
-  @Roles(UserRole.TEACHER, UserRole.INCHARGE, UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN)
-  @ApiOperation({ summary: "A teacher's own monthly attendance (calendar view)" })
+  @Roles(...SELF_ROLES)
+  @ApiOperation({ summary: "A teacher's / staff member's own monthly attendance (calendar view)" })
   async getMyStaffMonthly(
     @SchoolId() schoolId: number,
     @CurrentUser('user_id') userId: number,
@@ -113,5 +120,55 @@ export class AttendanceController {
   ) {
     const result = await this.attendanceService.getStaffAttendanceReport(schoolId, fromDate, toDate);
     return { success: true, data: result };
+  }
+
+  // ─── Holidays ─────────────────────────────────────────
+
+  @Get('holidays/upcoming')
+  @Roles(...ALL_ROLES)
+  @ApiOperation({ summary: 'Upcoming holidays for the current user (students see student holidays, staff see staff holidays)' })
+  async upcomingHolidays(@SchoolId() schoolId: number, @CurrentUser('role') role: string) {
+    return { success: true, data: await this.attendanceService.upcomingHolidays(schoolId, role) };
+  }
+
+  // ─── Self check-in (teachers + office staff, mobile app) ─────
+
+  @Get('self/status')
+  @Roles(...SELF_ROLES)
+  @ApiOperation({ summary: "Today's self-attendance status, rules and timings" })
+  async selfStatus(@SchoolId() schoolId: number, @CurrentUser('user_id') userId: number) {
+    return { success: true, data: await this.selfService.status(schoolId, userId) };
+  }
+
+  @Post('self/challenge')
+  @Roles(...SELF_ROLES)
+  @ApiOperation({ summary: 'Start a liveness challenge (blink + turn head left/right)' })
+  async selfChallenge(@SchoolId() schoolId: number, @CurrentUser('user_id') userId: number) {
+    return { success: true, data: await this.selfService.challenge(schoolId, userId) };
+  }
+
+  @Post('self/check-in')
+  @Roles(...SELF_ROLES)
+  @ApiOperation({ summary: 'Check in (location / face rules enforced on the server)' })
+  async selfCheckIn(@SchoolId() schoolId: number, @CurrentUser('user_id') userId: number, @Body() dto: CheckDto) {
+    return { success: true, data: await this.selfService.checkIn(schoolId, userId, dto || {}) };
+  }
+
+  @Post('self/check-out')
+  @Roles(...SELF_ROLES)
+  @ApiOperation({ summary: 'Check out' })
+  async selfCheckOut(@SchoolId() schoolId: number, @CurrentUser('user_id') userId: number, @Body() dto: CheckDto) {
+    return { success: true, data: await this.selfService.checkOut(schoolId, userId, dto || {}) };
+  }
+
+  @Post('self/face/register')
+  @Roles(...SELF_ROLES)
+  @ApiOperation({ summary: 'Submit a reference face photo (needs admin approval)' })
+  async registerFace(
+    @SchoolId() schoolId: number,
+    @CurrentUser('user_id') userId: number,
+    @Body() body: { image: string; consent: boolean },
+  ) {
+    return { success: true, data: await this.selfService.registerFace(schoolId, userId, body?.image, !!body?.consent) };
   }
 }

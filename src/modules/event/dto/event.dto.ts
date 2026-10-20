@@ -39,7 +39,8 @@ export class RegisterEventDto {
 }
 
 export class VerifyEventPaymentDto {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
+  razorpay_signature?: string;
+  cashfree_order_id?: string;
 }

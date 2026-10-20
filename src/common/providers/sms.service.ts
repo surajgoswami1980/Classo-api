@@ -1,58 +1,44 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { PlatformSettingsService } from './platform-settings.service';
 
 /**
- * Generic SMS sender. Mirrors EmailService's philosophy: if no SMS gateway
- * is configured, it logs what would have been sent instead of throwing, so
- * local/dev keeps working end-to-end.
+ * Generic HTTP SMS sender driven by Admin → Integrations → SMS
+ * (platform_settings), with the legacy SMS_* .env keys as fallback.
  *
- * Supports a simple HTTP gateway driven entirely by env (works with most
- * Indian providers like MSG91, Fast2SMS, TextLocal, Gupshup — set the URL
- * template and key). To integrate a specific provider's SDK later, swap the
- * body of `deliver()`.
+ * Works with most Indian providers (MSG91, Fast2SMS, TextLocal, Gupshup) via a
+ * URL template with {phone} {message} {key} {sender} placeholders.
+ * If no gateway is configured it logs instead of sending (dev-safe).
  */
 @Injectable()
 export class SmsService {
   private readonly logger = new Logger(SmsService.name);
 
-  constructor(private configService: ConfigService) {}
-
-  private get provider(): string {
-    return (this.configService.get('SMS_PROVIDER') || 'log').toLowerCase();
-  }
+  constructor(private readonly settings: PlatformSettingsService) {}
 
   async send(phone: string, message: string): Promise<boolean> {
     const normalized = this.normalize(phone);
+    const s = await this.settings.group('sms', ['provider', 'api_url', 'api_key', 'sender_id'] as const);
 
-    if (this.provider === 'log' || !this.configService.get('SMS_API_URL')) {
+    if ((s.provider || 'log').toLowerCase() === 'log' || !s.api_url) {
       this.logger.warn(`SMS gateway not configured — would have sent to ${normalized}: "${message}"`);
       return false;
     }
 
-    return this.deliver(normalized, message);
-  }
-
-  private async deliver(phone: string, message: string): Promise<boolean> {
     try {
-      const urlTemplate = this.configService.get('SMS_API_URL') as string;
-      const apiKey = this.configService.get('SMS_API_KEY') || '';
-      const senderId = this.configService.get('SMS_SENDER_ID') || '';
+      const url = s.api_url
+        .split('{phone}').join(encodeURIComponent(normalized))
+        .split('{message}').join(encodeURIComponent(message))
+        .split('{key}').join(encodeURIComponent(s.api_key || ''))
+        .split('{sender}').join(encodeURIComponent(s.sender_id || ''));
 
-      // Allow {phone}/{message}/{key}/{sender} placeholders in the URL template
-      const url = urlTemplate
-        .replace('{phone}', encodeURIComponent(phone))
-        .replace('{message}', encodeURIComponent(message))
-        .replace('{key}', encodeURIComponent(apiKey))
-        .replace('{sender}', encodeURIComponent(senderId));
-
-      const res = await fetch(url, { method: 'GET' });
+      const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(10_000) });
       if (!res.ok) {
-        this.logger.error(`SMS send failed (${res.status}) to ${phone}`);
+        this.logger.error(`SMS send failed (${res.status}) to ${normalized}`);
         return false;
       }
       return true;
     } catch (e: any) {
-      this.logger.error(`SMS send error to ${phone}: ${e.message}`);
+      this.logger.error(`SMS send error to ${normalized}: ${e.message}`);
       return false;
     }
   }
