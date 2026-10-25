@@ -732,6 +732,56 @@ export class AuthService {
   /**
    * Update user profile
    */
+  /**
+   * Account deletion request (required by the App Store and Google Play).
+   * Accounts are created and owned by schools, so we don't hard-delete here.
+   * The request is logged in the super-admin Enquiries inbox (source =
+   * 'account_deletion'), verified with the school, then erased. Push tokens and
+   * linked attendance devices are revoked straight away so the phone stops
+   * receiving data.
+   */
+  async requestAccountDeletion(userId: number, reason?: string) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    // One open request per account.
+    const open = await this.userRepo.query(
+      `SELECT id FROM enquiries WHERE source = 'account_deletion' AND email = ? AND status IN ('new','contacted') LIMIT 1`,
+      [user.email || `user-${user.id}@deletion.local`],
+    );
+    if (open?.length) return { request_id: open[0].id, already_requested: true };
+
+    let schoolName: string | null = null;
+    if (user.school_id) {
+      const s = await this.userRepo.query('SELECT name, code FROM schools WHERE id = ? LIMIT 1', [user.school_id]);
+      if (s?.length) schoolName = `${s[0].name} (${s[0].code})`;
+    }
+    const roleRow = await this.userRepo.query(
+      `SELECT r.name FROM roles r JOIN model_has_roles mhr ON r.id = mhr.role_id WHERE mhr.model_id = ? AND mhr.model_type = 'App\\\\Models\\\\User' LIMIT 1`,
+      [user.id],
+    ).catch(() => []);
+
+    const message = [
+      `Account deletion requested from the app.`,
+      `User ID: ${user.id}`,
+      `Role: ${roleRow?.[0]?.name || 'unknown'}`,
+      `School: ${schoolName || '—'}`,
+      reason?.trim() ? `Reason: ${String(reason).trim().slice(0, 1000)}` : null,
+    ].filter(Boolean).join('\n');
+
+    const result = await this.userRepo.query(
+      `INSERT INTO enquiries (name, email, phone, organization, subject, message, source, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'account_deletion', 'new', NOW(), NOW())`,
+      [user.name || 'User', user.email || `user-${user.id}@deletion.local`, user.phone || null, schoolName, 'Account deletion request', message],
+    );
+
+    // Stop pushes and unlink the attendance phone immediately (best effort; tables may not exist everywhere).
+    await this.userRepo.query('UPDATE device_tokens SET is_active = 0, updated_at = NOW() WHERE user_id = ?', [user.id]).catch(() => undefined);
+    await this.userRepo.query('DELETE FROM staff_devices WHERE user_id = ?', [user.id]).catch(() => undefined);
+
+    return { request_id: result?.insertId ?? null, already_requested: false };
+  }
+
   async updateProfile(userId: number, data: { name?: string; phone?: string; avatar?: string }) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');

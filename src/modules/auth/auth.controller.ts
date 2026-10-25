@@ -117,6 +117,22 @@ export class AuthController {
     return { success: true, data: result };
   }
 
+  @Post('delete-account')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Request deletion of the signed-in account (App Store / Play Store requirement). Verified with the school before erasure.' })
+  async requestAccountDeletion(
+    @CurrentUser('user_id') userId: number,
+    @Body() body: { reason?: string },
+  ) {
+    const result = await this.authService.requestAccountDeletion(userId, body?.reason);
+    return {
+      success: true,
+      message: 'Your deletion request has been received. We will confirm with your school and complete it within 30 days.',
+      data: result,
+    };
+  }
+
   @Post('update-profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
