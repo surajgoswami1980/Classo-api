@@ -6,6 +6,7 @@ import { AttendanceService } from './attendance.service';
 import { AttendanceConfigService } from './attendance-config.service';
 import { HolidayService } from './holiday.service';
 import { SelfAttendanceService } from './self-attendance.service';
+import { KioskService } from './kiosk.service';
 import { FaceMatchService } from './face-match.service';
 import { BiometricService } from './biometric.service';
 import { StudentAttendanceEntity } from '../../entities/student-attendance.entity';
@@ -30,6 +31,7 @@ import { HolidayEntity } from '../../entities/holiday.entity';
     AttendanceConfigService,
     HolidayService,
     SelfAttendanceService,
+    KioskService,
     FaceMatchService,
     BiometricService,
   ],

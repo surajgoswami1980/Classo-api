@@ -70,8 +70,10 @@ export class AuthService {
       throw new ForbiddenException('School account is inactive. Contact administrator.');
     }
 
-    // Find user by various identifiers within the school
-    const user = await this.userRepo
+    // Find ALL users matching this identifier within the school. A shared
+    // phone/email (e.g. siblings using the father's number) can match several
+    // accounts, so we no longer force a single result.
+    const candidates = await this.userRepo
       .createQueryBuilder('u')
       .where('u.school_id = :schoolId', { schoolId: school.id })
       .andWhere('u.is_active = :active', { active: true })
@@ -80,45 +82,85 @@ export class AuthService {
         '(u.employee_id = :identifier OR u.email = :identifier OR u.phone = :identifier)',
         { identifier: dto.identifier },
       )
-      .getOne();
+      .orderBy('u.id', 'ASC')
+      .getMany();
 
-    if (!user) {
-      // Debug: try without is_active and deleted_at filters to see if user exists at all
-      const debugUser = await this.userRepo
-        .createQueryBuilder('u')
-        .where('u.school_id = :schoolId', { schoolId: school.id })
-        .andWhere(
-          '(u.employee_id = :identifier OR u.email = :identifier OR u.phone = :identifier)',
-          { identifier: dto.identifier },
-        )
-        .getOne();
-      
-      if (debugUser) {
-        console.log('[LOGIN] User found but filtered out. is_active:', debugUser.is_active, 'deleted_at:', debugUser.deleted_at, 'id:', debugUser.id);
-      } else {
-        console.log('[LOGIN] No user exists at all for identifier:', dto.identifier, 'in school:', school.id);
-        // Also check if phone is stored with/without country code
-        const allUsers = await this.userRepo.query(
-          'SELECT id, name, email, phone, employee_id, is_active, deleted_at FROM users WHERE school_id = ? LIMIT 10',
-          [school.id],
-        );
-        console.log('[LOGIN] Users in this school:', JSON.stringify(allUsers));
-      }
+    if (candidates.length === 0) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Check if account is locked
-    // Verify password
-    // Laravel uses $2y$ prefix, bcryptjs uses $2a$ — they're compatible if we replace the prefix
-    let storedPassword = user.password;
-    if (storedPassword.startsWith('$2y$')) {
-      storedPassword = '$2a$' + storedPassword.slice(4);
+    // Keep only the accounts whose password matches. Siblings sharing a number
+    // usually share a password too; any that match are offered for selection.
+    const matched: UserEntity[] = [];
+    for (const u of candidates) {
+      let storedPassword = u.password;
+      if (storedPassword.startsWith('$2y$')) storedPassword = '$2a$' + storedPassword.slice(4);
+      if (await bcrypt.compare(dto.password, storedPassword)) matched.push(u);
     }
-    const isPasswordValid = await bcrypt.compare(dto.password, storedPassword);
-    if (!isPasswordValid) {
-      console.log('[LOGIN] Password mismatch for user:', user.id, user.name, '| phone:', user.phone, '| password hash starts:', storedPassword.substring(0, 15));
+
+    if (matched.length === 0) {
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    if (matched.length === 1) {
+      return this.buildSession(matched[0], school);
+    }
+
+    // Multiple accounts matched → ask the client to pick which one.
+    return this.buildAccountChoice(school, matched, 'password');
+  }
+
+  /**
+   * When one identifier + credential matches several accounts (shared phone),
+   * return a masked list plus a short-lived selection token. The client then
+   * calls /auth/select-account with the chosen user_id to get a session.
+   */
+  private buildAccountChoice(school: SchoolEntity, users: UserEntity[], via: 'password' | 'otp') {
+    const allowedIds = users.map((u) => u.id);
+    const selection_token = this.jwtService.sign(
+      { purpose: 'account_select', school_id: school.id, allowed_ids: allowedIds, via },
+      { secret: this.selectionSecret(), expiresIn: '5m' },
+    );
+    return {
+      multiple: true,
+      selection_token,
+      accounts: users.map((u) => ({
+        user_id: u.id,
+        name: u.name,
+        masked_phone: this.mask(u.phone || ''),
+      })),
+      school: { id: school.id, name: school.name, code: school.code, logo_url: school.logo },
+    };
+  }
+
+  private selectionSecret(): string {
+    return (this.configService.get('JWT_SECRET') || 'change-me') + ':account-select';
+  }
+
+  /**
+   * Finish a multi-account login: validate the selection token, ensure the
+   * chosen user_id was one of the matched accounts, then issue the session.
+   */
+  async selectAccount(selectionToken: string, userId: number) {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(selectionToken, { secret: this.selectionSecret() });
+    } catch {
+      throw new UnauthorizedException('Your selection session has expired. Please sign in again.');
+    }
+    if (payload?.purpose !== 'account_select' || !Array.isArray(payload.allowed_ids)) {
+      throw new UnauthorizedException('Invalid selection.');
+    }
+    if (!payload.allowed_ids.includes(Number(userId))) {
+      throw new UnauthorizedException('That account is not available for this login.');
+    }
+
+    const user = await this.userRepo.findOne({ where: { id: userId, is_active: true } });
+    if (!user || user.school_id !== payload.school_id) {
+      throw new UnauthorizedException('Account not found.');
+    }
+    const school = await this.schoolRepo.findOne({ where: { id: payload.school_id } });
+    if (!school) throw new UnauthorizedException('School not found.');
 
     return this.buildSession(user, school);
   }
@@ -248,6 +290,18 @@ export class AuthService {
       .getOne();
   }
 
+  /** All active users in a school matching the identifier (shared phone/email). */
+  private async findSchoolUsersByIdentifier(schoolId: number, identifier: string): Promise<UserEntity[]> {
+    return this.userRepo
+      .createQueryBuilder('u')
+      .where('u.school_id = :schoolId', { schoolId })
+      .andWhere('u.is_active = :active', { active: true })
+      .andWhere('u.deleted_at IS NULL')
+      .andWhere('(u.employee_id = :id OR u.email = :id OR u.phone = :id)', { id: identifier })
+      .orderBy('u.id', 'ASC')
+      .getMany();
+  }
+
   /**
    * Expose OTP availability for a school so the login screen can decide
    * whether to show the "Login with OTP" option.
@@ -305,17 +359,26 @@ export class AuthService {
     const { enabled } = this.resolveOtpConfig(school);
     if (!enabled) throw new ForbiddenException('OTP login is disabled for this school.');
 
-    const user = await this.findSchoolUserByIdentifier(school.id, identifier);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    // All accounts on this shared number/email (siblings share the father's number).
+    const users = await this.findSchoolUsersByIdentifier(school.id, identifier);
+    if (users.length === 0) throw new UnauthorizedException('Invalid credentials');
 
     const channel: OtpChannel = this.isEmail(identifier) ? 'email' : 'mobile';
-    const destination = channel === 'email' ? user.email : user.phone;
+    // The OTP went to the shared destination (same for all siblings).
+    const destination = channel === 'email'
+      ? (users.find((u) => u.email)?.email)
+      : (users.find((u) => u.phone)?.phone);
     if (!destination) throw new UnauthorizedException('Invalid credentials');
 
     const ok = await this.otpService.verify(channel, destination, otp);
     if (!ok) throw new UnauthorizedException('Invalid OTP');
 
-    return this.buildSession(user, school);
+    if (users.length === 1) {
+      return this.buildSession(users[0], school);
+    }
+
+    // Multiple accounts on this number → let the parent pick which child.
+    return this.buildAccountChoice(school, users, 'otp');
   }
 
   // ─── OTP Login (super admin) ────────────────────────────────────────

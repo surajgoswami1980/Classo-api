@@ -112,6 +112,17 @@ export class VerifyOtpDto {
   platform?: string;
 }
 
+export class SelectAccountDto {
+  @ApiProperty({ description: 'Short-lived selection token returned by login/verify when multiple accounts share the identifier' })
+  @IsNotEmpty()
+  @IsString()
+  selection_token: string;
+
+  @ApiProperty({ description: 'The chosen account user_id from the returned accounts list' })
+  @IsNotEmpty()
+  user_id: number;
+}
+
 export class SuperAdminRequestOtpDto {
   @ApiProperty({ description: 'Email or mobile of the super-admin account' })
   @IsNotEmpty()

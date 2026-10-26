@@ -45,11 +45,26 @@ export class PermissionsGuard implements CanActivate {
         'student.view',
         'teacher.view', // a teacher viewing their own profile/workload
         'transport.view', // a teacher viewing routes (e.g. a class incharge coordinating pickup)
+        'event.view', // a teacher viewing the school's events (read-only; event.manage still restricted)
       ];
       const hasTeacherPermission = requiredPermissions.some((perm) =>
         teacherPermissions.includes(perm),
       );
       if (hasTeacherPermission) return true;
+    }
+
+    // Office staff (non-teaching) get a narrow read-only set matching the
+    // staff dashboard: their own attendance/check-in, library, transport,
+    // and viewing school events. They do NOT get teaching permissions.
+    if (user.role === UserRole.STAFF) {
+      const staffPermissions = [
+        'attendance.view',
+        'transport.view',
+        'event.view',
+      ];
+      if (requiredPermissions.some((perm) => staffPermissions.includes(perm))) {
+        return true;
+      }
     }
 
     // Check user's permissions array from JWT payload

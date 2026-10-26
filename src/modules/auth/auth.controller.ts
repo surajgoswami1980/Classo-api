@@ -1,7 +1,7 @@
 import { Controller, Post, Body, UseGuards, Get, Request } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { LoginDto, SchoolLookupDto, RefreshTokenDto, SuperAdminLoginDto, ForgotPasswordDto, ResetPasswordDto, RequestOtpDto, VerifyOtpDto, SuperAdminRequestOtpDto, SuperAdminVerifyOtpDto } from './dto/login.dto';
+import { LoginDto, SchoolLookupDto, RefreshTokenDto, SuperAdminLoginDto, ForgotPasswordDto, ResetPasswordDto, RequestOtpDto, VerifyOtpDto, SelectAccountDto, SuperAdminRequestOtpDto, SuperAdminVerifyOtpDto } from './dto/login.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -58,6 +58,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify a login OTP and sign in (school user)' })
   async verifyOtp(@Body() dto: VerifyOtpDto) {
     const result = await this.authService.verifyOtp(dto.school_code, dto.identifier.trim(), dto.otp.trim());
+    return { success: true, data: result };
+  }
+
+  @Post('select-account')
+  @ApiOperation({ summary: 'When a shared number matches several accounts, sign in as the chosen one' })
+  async selectAccount(@Body() dto: SelectAccountDto) {
+    const result = await this.authService.selectAccount(dto.selection_token, dto.user_id);
     return { success: true, data: result };
   }
 

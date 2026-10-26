@@ -36,6 +36,7 @@ export interface AttendanceConfig {
   };
   face: { threshold: number };
   biometric: { enabled: boolean };
+  kiosk: { enabled: boolean; engine: 'free' | 'aws' };
 }
 
 export const DEFAULT_ATTENDANCE_CONFIG: AttendanceConfig = {
@@ -47,6 +48,7 @@ export const DEFAULT_ATTENDANCE_CONFIG: AttendanceConfig = {
   timing: { start: '09:00', end: '14:00', grace_minutes: 10, checkin_opens_minutes: 60, half_day_after_minutes: 0 },
   face: { threshold: 90 },
   biometric: { enabled: false },
+  kiosk: { enabled: false, engine: 'free' },
 };
 
 /** Current wall-clock in a timezone, as numbers + a YYYY-MM-DD string. */
@@ -130,6 +132,7 @@ export class AttendanceConfigService {
       timing: { ...d.timing, ...(saved.timing || {}) },
       face: { ...d.face, ...(saved.face || {}) },
       biometric: { ...d.biometric, ...(saved.biometric || {}) },
+      kiosk: { ...d.kiosk, ...(saved.kiosk || {}) },
     };
   }
 

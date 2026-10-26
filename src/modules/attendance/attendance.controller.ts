@@ -10,6 +10,7 @@ import { RequirePermissions, Permission } from '../../common/decorators/permissi
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SchoolId } from '../../common/decorators/school-id.decorator';
 import { CheckDto, SelfAttendanceService, SELF_ATTENDANCE_ROLES } from './self-attendance.service';
+import { KioskService, KioskMarkDto } from './kiosk.service';
 
 const SELF_ROLES = SELF_ATTENDANCE_ROLES as UserRole[];
 const ALL_ROLES = Object.values(UserRole);
@@ -22,6 +23,7 @@ export class AttendanceController {
   constructor(
     private readonly attendanceService: AttendanceService,
     private readonly selfService: SelfAttendanceService,
+    private readonly kioskService: KioskService,
   ) {}
 
   // ─── Student Attendance ─────────────────────────────────
@@ -170,5 +172,30 @@ export class AttendanceController {
     @Body() body: { image: string; consent: boolean },
   ) {
     return { success: true, data: await this.selfService.registerFace(schoolId, userId, body?.image, !!body?.consent) };
+  }
+
+  // ─── Kiosk (shared entrance device, free engine) ─────────────
+  // The kiosk tablet is signed in as a school-admin/sub-admin. Staff pick
+  // their name + show a live face; the app confirms liveness on-device.
+
+  @Get('kiosk/roster')
+  @Roles(UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN)
+  @ApiOperation({ summary: 'Kiosk: list staff/teachers that can mark attendance on this device' })
+  async kioskRoster(@SchoolId() schoolId: number) {
+    return { success: true, data: await this.kioskService.roster(schoolId) };
+  }
+
+  @Post('kiosk/check-in')
+  @Roles(UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN)
+  @ApiOperation({ summary: 'Kiosk: mark entry for the selected staff member' })
+  async kioskCheckIn(@SchoolId() schoolId: number, @Body() dto: KioskMarkDto) {
+    return { success: true, data: await this.kioskService.mark(schoolId, dto, 'in') };
+  }
+
+  @Post('kiosk/check-out')
+  @Roles(UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN)
+  @ApiOperation({ summary: 'Kiosk: mark exit for the selected staff member' })
+  async kioskCheckOut(@SchoolId() schoolId: number, @Body() dto: KioskMarkDto) {
+    return { success: true, data: await this.kioskService.mark(schoolId, dto, 'out') };
   }
 }

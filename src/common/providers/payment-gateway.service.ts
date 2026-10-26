@@ -157,7 +157,7 @@ export class PaymentGatewayService {
     const cfg = await this.splitConfig(schoolId);
     const provider = await this.provider();
     const amount = round2(amountRupees);
-    const platformPct = cfg.platform_fee_percent ?? (await this.settings.number('payment', 'platform_fee_percent', 1.5));
+    const platformPct = cfg.platform_fee_percent ?? (await this.settings.number('payment', 'platform_fee_percent', 0));
     const gatewayPct = cfg.gateway_fee_percent ?? (await this.settings.number('payment', 'gateway_fee_percent', 2));
 
     const platform_fee = round2((amount * platformPct) / 100);

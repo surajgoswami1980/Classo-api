@@ -17,7 +17,7 @@ import * as crypto from 'crypto';
  */
 const ENV_FALLBACK: Record<string, { env?: string; default?: string }> = {
   'payment.gateway': { env: 'PAYMENT_GATEWAY', default: 'razorpay' },
-  'payment.platform_fee_percent': { env: 'PLATFORM_FEE_PERCENT', default: '1.5' },
+  'payment.platform_fee_percent': { env: 'PLATFORM_FEE_PERCENT', default: '0' },
   'payment.gateway_fee_percent': { env: 'GATEWAY_FEE_PERCENT', default: '2' },
 
   'razorpay.key_id': { env: 'RAZORPAY_KEY_ID' },
@@ -49,6 +49,15 @@ const ENV_FALLBACK: Record<string, { env?: string; default?: string }> = {
   'sms.api_url': { env: 'SMS_API_URL' },
   'sms.api_key': { env: 'SMS_API_KEY' },
   'sms.sender_id': { env: 'SMS_SENDER_ID' },
+
+  'storage.enabled': { default: '0' },
+  'storage.key': { env: 'AWS_ACCESS_KEY_ID' },
+  'storage.secret': { env: 'AWS_SECRET_ACCESS_KEY' },
+  'storage.region': { env: 'AWS_DEFAULT_REGION', default: 'ap-south-1' },
+  'storage.bucket': { env: 'AWS_BUCKET' },
+  'storage.url': {},
+  'storage.endpoint': {},
+  'storage.path_style': { default: '0' },
 };
 
 @Injectable()

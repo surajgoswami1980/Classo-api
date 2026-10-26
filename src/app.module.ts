@@ -36,6 +36,7 @@ import { BannerModule } from './modules/banner/banner.module';
 import { StoreModule } from './modules/store/store.module';
 import { EnquiryModule } from './modules/enquiry/enquiry.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 @Module({
   imports: [
@@ -90,6 +91,7 @@ import { InvoiceModule } from './modules/invoice/invoice.module';
     StoreModule,
     EnquiryModule,
     InvoiceModule,
+    UploadModule,
   ],
 })
 export class AppModule implements NestModule {

@@ -62,7 +62,7 @@ export class EventController {
   }
 
   @Get('admin/list')
-  @Roles(UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN, UserRole.TEACHER, UserRole.INCHARGE)
+  @Roles(UserRole.SCHOOL_ADMIN, UserRole.SUB_ADMIN, UserRole.TEACHER, UserRole.INCHARGE, UserRole.STAFF)
   @RequirePermissions(Permission.EVENT_VIEW)
   @ApiOperation({ summary: 'Admin: list events with registration counts' })
   async adminList(@SchoolId() schoolId: number, @Query() query: ListEventsQueryDto) {
